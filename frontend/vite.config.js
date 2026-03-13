@@ -1,0 +1,15 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 5173,
+    // Allow GHL iframe to load this page
+    headers: {
+      'X-Frame-Options': 'ALLOWALL',
+    },
+  },
+  // Environment variables prefixed with VITE_ are exposed to the client
+  envPrefix: 'VITE_',
+});
