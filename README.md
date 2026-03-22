@@ -99,7 +99,7 @@ telesync/
    - Check "Is this a Custom Conversation Provider"
    - Check "Always show this Conversation Provider"
    - Alias: "Telegram"
-   - Delivery URL: `https://your-server.com/webhooks/ghl-outbound`
+   - Delivery URL: `https://<your-backend>/webhooks/ghl-outbound`
 4. Generate a Shared Secret (SSO key) in Advanced Settings
 5. Add a Custom Page pointing to your frontend URL
 
@@ -118,8 +118,23 @@ npm run start:dev
 
 ```bash
 cd frontend
+cp .env.example .env
+# Set VITE_API_BASE to your backend URL
 npm install
 npm run dev
+```
+
+### 4. Deployment
+
+- **Frontend:** Deployed to Netlify as a static site (`npm run build` → `dist/`)
+- **Backend:** Any Node.js host (Render, Railway, Fly.io, or ngrok for dev)
+
+```bash
+# Deploy frontend to Netlify
+cd frontend && npm run build && netlify deploy --dir dist --prod
+
+# GHL Marketplace webhook URL (single endpoint for install/uninstall)
+https://<your-backend>/webhooks/ghl-app-lifecycle
 ```
 
 ## Environment Variables
@@ -134,6 +149,7 @@ npm run dev
 | `GHL_APP_ID` | Marketplace app ID |
 | `GHL_API_BASE` | GHL API base URL (default: `https://services.leadconnectorhq.com`) |
 | `GHL_API_VERSION` | GHL API version (default: `2021-04-15`) |
+| `GHL_CONVERSATION_PROVIDER_ID` | Conversation Provider ID from GHL marketplace app |
 | `ENCRYPTION_KEY` | 32-byte hex key for AES-256-GCM encryption |
 | `BACKEND_URL` | Public URL of the NestJS server |
 | `FRONTEND_URL` | Public URL of the React frontend |
@@ -163,8 +179,7 @@ npm run dev
 |--------|------|-------------|
 | `POST` | `/webhooks/telegram/:locationId` | Inbound Telegram messages |
 | `POST` | `/webhooks/ghl-outbound` | Outbound GHL messages |
-| `POST` | `/webhooks/ghl-app-install` | App installation lifecycle |
-| `POST` | `/webhooks/ghl-app-uninstall` | App uninstallation cleanup |
+| `POST` | `/webhooks/ghl-app-lifecycle` | App install/uninstall (routes by `type` field in payload) |
 
 ## Message Flow
 
