@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TeleSync — Telegram for GoHighLevel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: transparent;
+        -webkit-font-smoothing: antialiased;
+      }
+      /* Spinner animation */
+      .animate-spin { animation: spin 1s linear infinite; }
+      @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      /* Global interactive states */
+      input:focus {
+        border-color: #0088cc !important;
+        box-shadow: 0 0 0 3px rgba(0,136,204,0.1);
+        outline: none;
+      }
+      button { cursor: pointer; transition: opacity 0.15s, transform 0.1s; }
+      button:hover { opacity: 0.9; }
+      button:active { transform: scale(0.98); }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
