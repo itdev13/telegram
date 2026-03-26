@@ -1,20 +1,16 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
-import * as CryptoJS from 'crypto-js';
+const crypto = require('crypto');
+const CryptoJS = require('crypto-js');
 
-@Injectable()
-export class CryptoService {
-  private readonly encryptionKey: Buffer;
-
-  constructor(private config: ConfigService) {
-    const key = this.config.getOrThrow<string>('ENCRYPTION_KEY');
+class CryptoService {
+  constructor() {
+    const key = process.env.ENCRYPTION_KEY;
+    if (!key) throw new Error('ENCRYPTION_KEY is required');
     this.encryptionKey = Buffer.from(key, 'hex');
   }
 
   // ── AES-256-GCM for database field encryption ──────────────
 
-  encrypt(plaintext: string): string {
+  encrypt(plaintext) {
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv('aes-256-gcm', this.encryptionKey, iv);
 
@@ -25,7 +21,7 @@ export class CryptoService {
     return `${iv.toString('hex')}:${authTag}:${encrypted}`;
   }
 
-  decrypt(ciphertext: string): string {
+  decrypt(ciphertext) {
     const [ivHex, authTagHex, encrypted] = ciphertext.split(':');
 
     const iv = Buffer.from(ivHex, 'hex');
@@ -40,8 +36,10 @@ export class CryptoService {
 
   // ── CryptoJS AES decryption for GHL SSO payloads ──────────
 
-  decryptSsoPayload(encryptedPayload: string): Record<string, any> {
-    const ssoKey = this.config.getOrThrow<string>('GHL_SSO_KEY');
+  decryptSsoPayload(encryptedPayload) {
+    const ssoKey = process.env.GHL_SSO_KEY;
+    if (!ssoKey) throw new Error('GHL_SSO_KEY is required');
+
     const decrypted = CryptoJS.AES.decrypt(encryptedPayload, ssoKey).toString(CryptoJS.enc.Utf8);
 
     if (!decrypted) {
@@ -53,7 +51,9 @@ export class CryptoService {
 
   // ── Generate random secrets ────────────────────────────────
 
-  generateWebhookSecret(): string {
+  generateWebhookSecret() {
     return crypto.randomBytes(32).toString('hex');
   }
 }
+
+module.exports = CryptoService;

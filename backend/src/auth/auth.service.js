@@ -1,61 +1,40 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { InjectModel } from '@nestjs/mongoose';
-import axios from 'axios';
-import { Model } from 'mongoose';
-import { GhlLocationTokenResponse, GhlSsoPayload, GhlTokenResponse } from '../common/interfaces';
-import { CryptoService } from '../crypto/crypto.service';
-import { CompanyLocation, CompanyLocationDocument } from '../schemas/company-location.schema';
-import { CompanyToken, CompanyTokenDocument } from '../schemas/company-token.schema';
-import { Installation, InstallationDocument } from '../schemas/installation.schema';
-import { Referral, ReferralDocument } from '../schemas/referral.schema';
+const axios = require('axios');
+const Installation = require('../schemas/installation.schema');
+const CompanyToken = require('../schemas/company-token.schema');
+const CompanyLocation = require('../schemas/company-location.schema');
+const Referral = require('../schemas/referral.schema');
 
-@Injectable()
-export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
-  private readonly ghlApiBase: string;
-
-  constructor(
-    @InjectModel(Installation.name)
-    private installationModel: Model<InstallationDocument>,
-    @InjectModel(CompanyToken.name)
-    private companyTokenModel: Model<CompanyTokenDocument>,
-    @InjectModel(CompanyLocation.name)
-    private companyLocationModel: Model<CompanyLocationDocument>,
-    @InjectModel(Referral.name)
-    private referralModel: Model<ReferralDocument>,
-    private crypto: CryptoService,
-    private config: ConfigService,
-  ) {
-    this.ghlApiBase = this.config.getOrThrow('GHL_API_BASE');
+class AuthService {
+  constructor(cryptoService) {
+    this.crypto = cryptoService;
+    this.ghlApiBase = process.env.GHL_API_BASE;
+    if (!this.ghlApiBase) throw new Error('GHL_API_BASE is required');
   }
 
   // ── OAuth: Exchange authorization code for tokens ──────────
 
-  async handleOAuthCallback(code: string, state?: string): Promise<void> {
-    this.logger.log(`OAuth token exchange starting for code: ${code.substring(0, 8)}...`);
-    this.logger.log(`Using redirect_uri: ${this.config.getOrThrow('GHL_REDIRECT_URI')}`);
-    this.logger.log(
-      `Using client_id: ${this.config.getOrThrow('GHL_CLIENT_ID').substring(0, 8)}...`,
-    );
+  async handleOAuthCallback(code, state) {
+    console.log(`OAuth token exchange starting for code: ${code.substring(0, 8)}...`);
+    console.log(`Using redirect_uri: ${process.env.GHL_REDIRECT_URI}`);
+    console.log(`Using client_id: ${process.env.GHL_CLIENT_ID.substring(0, 8)}...`);
 
-    let tokenResponse: { data: GhlTokenResponse };
+    let tokenResponse;
     try {
-      tokenResponse = await axios.post<GhlTokenResponse>(
+      tokenResponse = await axios.post(
         `${this.ghlApiBase}/oauth/token`,
         new URLSearchParams({
-          client_id: this.config.getOrThrow('GHL_CLIENT_ID'),
-          client_secret: this.config.getOrThrow('GHL_CLIENT_SECRET'),
+          client_id: process.env.GHL_CLIENT_ID,
+          client_secret: process.env.GHL_CLIENT_SECRET,
           grant_type: 'authorization_code',
           code,
-          redirect_uri: this.config.getOrThrow('GHL_REDIRECT_URI'),
+          redirect_uri: process.env.GHL_REDIRECT_URI,
         }),
       );
-      this.logger.log(
+      console.log(
         `Token exchange successful, got locationId=${tokenResponse.data.locationId}, companyId=${tokenResponse.data.companyId}`,
       );
-    } catch (error: any) {
-      this.logger.error(
+    } catch (error) {
+      console.error(
         `Token exchange failed: status=${error?.response?.status}, data=${JSON.stringify(error?.response?.data)}`,
       );
       throw error;
@@ -64,12 +43,12 @@ export class AuthService {
     const { access_token, refresh_token, expires_in, locationId, companyId } = tokenResponse.data;
 
     // Decode referral state if present
-    let referralData: { ref?: string; campaign?: string } = {};
+    let referralData = {};
     if (state) {
       try {
         referralData = JSON.parse(Buffer.from(state, 'base64').toString('utf8'));
       } catch {
-        this.logger.warn('Failed to decode OAuth state parameter');
+        console.warn('Failed to decode OAuth state parameter');
       }
     }
 
@@ -77,7 +56,7 @@ export class AuthService {
 
     if (locationId) {
       // ── Location-level install ──
-      await this.installationModel.findOneAndUpdate(
+      await Installation.findOneAndUpdate(
         { locationId },
         {
           companyId: companyId || '',
@@ -89,21 +68,21 @@ export class AuthService {
           installedAt: new Date(),
           ...(referralData.ref ? { referralCode: referralData.ref } : {}),
           $setOnInsert: {
-            conversationProviderId: this.config.get('GHL_CONVERSATION_PROVIDER_ID', ''),
+            conversationProviderId: process.env.GHL_CONVERSATION_PROVIDER_ID || '',
           },
         },
         { upsert: true, new: true },
       );
 
-      this.logger.log(`OAuth tokens stored for location: ${locationId}`);
+      console.log(`OAuth tokens stored for location: ${locationId}`);
 
       // Track referral if present
       if (referralData.ref) {
-        await this.upsertReferral(referralData.ref, companyId, locationId, referralData.campaign);
+        await this._upsertReferral(referralData.ref, companyId, locationId, referralData.campaign);
       }
     } else if (companyId) {
       // ── Company-level install ──
-      await this.companyTokenModel.findOneAndUpdate(
+      await CompanyToken.findOneAndUpdate(
         { companyId },
         {
           companyId,
@@ -115,40 +94,37 @@ export class AuthService {
         { upsert: true, new: true },
       );
 
-      this.logger.log(`Company-level OAuth tokens stored for company: ${companyId}`);
+      console.log(`Company-level OAuth tokens stored for company: ${companyId}`);
 
       // Fetch and store all sub-account location IDs
       try {
-        const locations = await this.getCompanyLocations(access_token, companyId);
+        const locations = await this._getCompanyLocations(access_token, companyId);
         const locationIds = locations.map((loc) => loc.id);
 
-        await this.companyLocationModel.findOneAndUpdate(
+        await CompanyLocation.findOneAndUpdate(
           { companyId },
           { companyId, locationIds },
           { upsert: true, new: true },
         );
 
-        this.logger.log(`Stored ${locationIds.length} locations for company: ${companyId}`);
+        console.log(`Stored ${locationIds.length} locations for company: ${companyId}`);
       } catch (error) {
-        this.logger.error(`Failed to fetch company locations for ${companyId}`, error);
+        console.error(`Failed to fetch company locations for ${companyId}`, error);
       }
 
       // Track referral if present
       if (referralData.ref) {
-        await this.upsertReferral(referralData.ref, companyId, undefined, referralData.campaign);
+        await this._upsertReferral(referralData.ref, companyId, undefined, referralData.campaign);
       }
     } else {
       throw new Error('OAuth response missing both locationId and companyId');
     }
   }
 
-  // ── Fetch company locations (uses axios directly to avoid circular dep) ──
+  // ── Fetch company locations ──────────────────────────────
 
-  private async getCompanyLocations(
-    accessToken: string,
-    companyId: string,
-  ): Promise<Array<{ id: string; name: string }>> {
-    const apiVersion = this.config.getOrThrow('GHL_API_VERSION');
+  async _getCompanyLocations(accessToken, companyId) {
+    const apiVersion = process.env.GHL_API_VERSION;
     const res = await axios.get(`${this.ghlApiBase}/locations/search`, {
       params: { companyId },
       headers: {
@@ -162,48 +138,47 @@ export class AuthService {
 
   // ── Generate location-level token from company token ──
 
-  async generateLocationToken(
-    companyId: string,
-    locationId: string,
-  ): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
-    const companyToken = await this.companyTokenModel.findOne({
+  async generateLocationToken(companyId, locationId) {
+    const companyToken = await CompanyToken.findOne({
       companyId,
       isActive: true,
     });
 
     if (!companyToken) {
-      throw new UnauthorizedException(`No active company token for company: ${companyId}`);
+      const err = new Error(`No active company token for company: ${companyId}`);
+      err.statusCode = 401;
+      throw err;
     }
 
     // Refresh company token if expiring within 5 minutes
     let accessToken = this.crypto.decrypt(companyToken.accessToken);
     const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000);
     if (companyToken.tokenExpiresAt < fiveMinutesFromNow) {
-      accessToken = await this.refreshCompanyToken(companyId);
+      accessToken = await this._refreshCompanyToken(companyId);
     }
 
     try {
-      const res = await axios.post<GhlLocationTokenResponse>(
+      const res = await axios.post(
         `${this.ghlApiBase}/oauth/locationToken`,
         { companyId, locationId },
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
-            Version: this.config.getOrThrow('GHL_API_VERSION'),
+            Version: process.env.GHL_API_VERSION,
             'Content-Type': 'application/json',
           },
         },
       );
 
-      this.logger.log(`Location token generated for ${locationId} from company ${companyId}`);
+      console.log(`Location token generated for ${locationId} from company ${companyId}`);
 
       return {
         accessToken: res.data.access_token,
         refreshToken: res.data.refresh_token,
         expiresIn: res.data.expires_in,
       };
-    } catch (error: any) {
-      this.logger.error(
+    } catch (error) {
+      console.error(
         `Failed to generate location token for ${locationId} from company ${companyId}` +
           ` | Status: ${error?.response?.status}` +
           ` | Response: ${JSON.stringify(error?.response?.data)}`,
@@ -214,19 +189,21 @@ export class AuthService {
 
   // ── Refresh company-level token ──
 
-  private async refreshCompanyToken(companyId: string): Promise<string> {
-    const companyToken = await this.companyTokenModel.findOne({ companyId });
+  async _refreshCompanyToken(companyId) {
+    const companyToken = await CompanyToken.findOne({ companyId });
     if (!companyToken) {
-      throw new UnauthorizedException(`No company token for: ${companyId}`);
+      const err = new Error(`No company token for: ${companyId}`);
+      err.statusCode = 401;
+      throw err;
     }
 
     const refreshToken = this.crypto.decrypt(companyToken.refreshToken);
 
-    const tokenResponse = await axios.post<GhlTokenResponse>(
+    const tokenResponse = await axios.post(
       `${this.ghlApiBase}/oauth/token`,
       new URLSearchParams({
-        client_id: this.config.getOrThrow('GHL_CLIENT_ID'),
-        client_secret: this.config.getOrThrow('GHL_CLIENT_SECRET'),
+        client_id: process.env.GHL_CLIENT_ID,
+        client_secret: process.env.GHL_CLIENT_SECRET,
         grant_type: 'refresh_token',
         refresh_token: refreshToken,
       }),
@@ -236,7 +213,7 @@ export class AuthService {
 
     const expiresAt = new Date(Date.now() + expires_in * 1000);
 
-    await this.companyTokenModel.updateOne(
+    await CompanyToken.updateOne(
       { companyId },
       {
         accessToken: this.crypto.encrypt(access_token),
@@ -250,21 +227,23 @@ export class AuthService {
 
   // ── OAuth: Refresh expired access token (location-level) ────
 
-  async refreshAccessToken(locationId: string): Promise<string> {
-    const installation = await this.installationModel.findOne({ locationId });
+  async refreshAccessToken(locationId) {
+    const installation = await Installation.findOne({ locationId });
 
     if (!installation) {
-      throw new UnauthorizedException(`No installation found for location: ${locationId}`);
+      const err = new Error(`No installation found for location: ${locationId}`);
+      err.statusCode = 401;
+      throw err;
     }
 
     const refreshToken = this.crypto.decrypt(installation.refreshToken);
 
     try {
-      const tokenResponse = await axios.post<GhlTokenResponse>(
+      const tokenResponse = await axios.post(
         `${this.ghlApiBase}/oauth/token`,
         new URLSearchParams({
-          client_id: this.config.getOrThrow('GHL_CLIENT_ID'),
-          client_secret: this.config.getOrThrow('GHL_CLIENT_SECRET'),
+          client_id: process.env.GHL_CLIENT_ID,
+          client_secret: process.env.GHL_CLIENT_SECRET,
           grant_type: 'refresh_token',
           refresh_token: refreshToken,
         }),
@@ -274,7 +253,7 @@ export class AuthService {
 
       const expiresAt = new Date(Date.now() + expires_in * 1000);
 
-      await this.installationModel.updateOne(
+      await Installation.updateOne(
         { locationId },
         {
           accessToken: this.crypto.encrypt(access_token),
@@ -284,16 +263,16 @@ export class AuthService {
       );
 
       return access_token;
-    } catch (error: any) {
+    } catch (error) {
       // Race condition handling: if another process already refreshed
       if (error?.response?.data?.error === 'invalid_grant') {
-        this.logger.warn(
+        console.warn(
           `invalid_grant for ${locationId}, checking if token was refreshed by another process`,
         );
 
-        const freshInstallation = await this.installationModel.findOne({ locationId });
+        const freshInstallation = await Installation.findOne({ locationId });
         if (freshInstallation && freshInstallation.accessToken !== installation.accessToken) {
-          this.logger.log(`Token was refreshed by another process for ${locationId}`);
+          console.log(`Token was refreshed by another process for ${locationId}`);
           return this.crypto.decrypt(freshInstallation.accessToken);
         }
       }
@@ -304,9 +283,9 @@ export class AuthService {
 
   // ── Get valid access token (auto-refresh, company fallback) ──
 
-  async getAccessToken(locationId: string): Promise<string> {
+  async getAccessToken(locationId) {
     // Step 1: Check for active installation
-    const installation = await this.installationModel.findOne({
+    const installation = await Installation.findOne({
       locationId,
       $or: [{ status: 'active' }, { status: { $exists: false } }],
     });
@@ -314,28 +293,31 @@ export class AuthService {
     if (installation && installation.accessToken) {
       const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000);
       if (installation.tokenExpiresAt && installation.tokenExpiresAt < fiveMinutesFromNow) {
-        this.logger.log(`Token expired for ${locationId}, refreshing...`);
+        console.log(`Token expired for ${locationId}, refreshing...`);
         return this.refreshAccessToken(locationId);
       }
       return this.crypto.decrypt(installation.accessToken);
     }
 
     // Step 2: No tokens — try company token fallback to generate location token
-    const companyLocation = await this.companyLocationModel.findOne({
+    const companyLocation = await CompanyLocation.findOne({
       locationIds: locationId,
     });
 
     if (companyLocation) {
-      this.logger.log(
+      console.log(
         `No valid token for ${locationId}, generating from company ${companyLocation.companyId}`,
       );
 
-      const locationToken = await this.generateLocationToken(companyLocation.companyId, locationId);
+      const locationToken = await this.generateLocationToken(
+        companyLocation.companyId,
+        locationId,
+      );
 
       const expiresAt = new Date(Date.now() + locationToken.expiresIn * 1000);
 
       // Update or create installation record with generated token
-      await this.installationModel.findOneAndUpdate(
+      await Installation.findOneAndUpdate(
         { locationId },
         {
           companyId: companyLocation.companyId,
@@ -346,7 +328,7 @@ export class AuthService {
           status: 'active',
           installedAt: new Date(),
           $setOnInsert: {
-            conversationProviderId: this.config.get('GHL_CONVERSATION_PROVIDER_ID', ''),
+            conversationProviderId: process.env.GHL_CONVERSATION_PROVIDER_ID || '',
           },
         },
         { upsert: true, new: true },
@@ -355,23 +337,20 @@ export class AuthService {
       return locationToken.accessToken;
     }
 
-    throw new UnauthorizedException(`No installation for location: ${locationId}`);
+    const err = new Error(`No installation for location: ${locationId}`);
+    err.statusCode = 401;
+    throw err;
   }
 
   // ── Upsert referral record ──
 
-  private async upsertReferral(
-    referralCode: string,
-    companyId?: string,
-    locationId?: string,
-    campaign?: string,
-  ): Promise<void> {
+  async _upsertReferral(referralCode, companyId, locationId, campaign) {
     try {
-      const filter: Record<string, any> = { referralCode };
+      const filter = { referralCode };
       if (locationId) filter.locationId = locationId;
       else if (companyId) filter.companyId = companyId;
 
-      await this.referralModel.findOneAndUpdate(
+      await Referral.findOneAndUpdate(
         filter,
         {
           referralCode,
@@ -385,22 +364,26 @@ export class AuthService {
         { upsert: true, new: true },
       );
 
-      this.logger.log(
+      console.log(
         `Referral tracked: code=${referralCode}, location=${locationId || 'company-level'}`,
       );
     } catch (error) {
-      this.logger.error('Failed to track referral', error);
+      console.error('Failed to track referral', error);
     }
   }
 
   // ── SSO: Decrypt Custom Page SSO payload ───────────────────
 
-  decryptSsoPayload(encryptedPayload: string): GhlSsoPayload {
+  decryptSsoPayload(encryptedPayload) {
     try {
-      return this.crypto.decryptSsoPayload(encryptedPayload) as GhlSsoPayload;
+      return this.crypto.decryptSsoPayload(encryptedPayload);
     } catch (error) {
-      this.logger.error('SSO decryption failed', error);
-      throw new UnauthorizedException('Invalid or expired SSO session');
+      console.error('SSO decryption failed', error);
+      const err = new Error('Invalid or expired SSO session');
+      err.statusCode = 401;
+      throw err;
     }
   }
 }
+
+module.exports = AuthService;

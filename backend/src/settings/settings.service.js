@@ -1,34 +1,15 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Installation, InstallationDocument } from '../schemas/installation.schema';
-import { CompanyLocation, CompanyLocationDocument } from '../schemas/company-location.schema';
-import { CryptoService } from '../crypto/crypto.service';
-import { TelegramService } from '../telegram/telegram.service';
-import { ConfigService } from '@nestjs/config';
-import { AuthService } from '../auth/auth.service';
+const Installation = require('../schemas/installation.schema');
+const CompanyLocation = require('../schemas/company-location.schema');
 
-@Injectable()
-export class SettingsService {
-  private readonly logger = new Logger(SettingsService.name);
+class SettingsService {
+  constructor(cryptoService, telegramService, authService) {
+    this.crypto = cryptoService;
+    this.telegram = telegramService;
+    this.authService = authService;
+  }
 
-  constructor(
-    @InjectModel(Installation.name)
-    private installationModel: Model<InstallationDocument>,
-    @InjectModel(CompanyLocation.name)
-    private companyLocationModel: Model<CompanyLocationDocument>,
-    private crypto: CryptoService,
-    private telegram: TelegramService,
-    private authService: AuthService,
-    private config: ConfigService,
-  ) {}
-
-  /**
-   * Get current Telegram configuration for a location.
-   * Returns bot info without exposing the token.
-   */
-  async getConfig(locationId: string) {
-    const installation = await this.installationModel.findOne({ locationId });
+  async getConfig(locationId) {
+    const installation = await Installation.findOne({ locationId });
     const config = installation?.telegramConfig;
 
     if (!config) {
@@ -46,16 +27,12 @@ export class SettingsService {
     };
   }
 
-  /**
-   * Connect a Telegram bot to a GHL location.
-   * Validates the token, stores encrypted config, and registers webhook.
-   */
-  async connectBot(locationId: string, botToken: string) {
+  async connectBot(locationId, botToken) {
     // Step 1: Validate the bot token with Telegram
     const botInfo = await this.telegram.validateBotToken(botToken);
 
     // Step 2: Check if this location already has a config — disconnect old bot
-    const installation = await this.installationModel.findOne({ locationId });
+    const installation = await Installation.findOne({ locationId });
     if (installation?.telegramConfig) {
       const oldToken = this.crypto.decrypt(installation.telegramConfig.botToken);
       await this.telegram.deleteWebhook(oldToken);
@@ -81,19 +58,17 @@ export class SettingsService {
     };
 
     if (installation) {
-      // Document exists — just update the telegram config
-      await this.installationModel.updateOne({ locationId }, { telegramConfig });
+      await Installation.updateOne({ locationId }, { telegramConfig });
     } else {
-      // No installation yet — generate location token and create the record
-      const setOnInsert: Record<string, any> = {
+      const setOnInsert = {
         locationId,
         status: 'active',
         installedAt: new Date(),
-        conversationProviderId: this.config.get('GHL_CONVERSATION_PROVIDER_ID', ''),
+        conversationProviderId: process.env.GHL_CONVERSATION_PROVIDER_ID || '',
       };
 
       // Try to generate GHL location token from company token
-      const companyLocation = await this.companyLocationModel.findOne({
+      const companyLocation = await CompanyLocation.findOne({
         locationIds: locationId,
       });
 
@@ -110,23 +85,23 @@ export class SettingsService {
           setOnInsert.refreshToken = this.crypto.encrypt(locationToken.refreshToken);
           setOnInsert.tokenExpiresAt = expiresAt;
 
-          this.logger.log(`Location token generated for ${locationId}`);
+          console.log(`Location token generated for ${locationId}`);
         } catch (error) {
-          this.logger.warn(
+          console.warn(
             `Could not generate location token for ${locationId}, will be generated lazily`,
             error.message,
           );
         }
       }
 
-      await this.installationModel.findOneAndUpdate(
+      await Installation.findOneAndUpdate(
         { locationId },
         { telegramConfig, $setOnInsert: setOnInsert },
         { upsert: true },
       );
     }
 
-    this.logger.log(`Bot @${botInfo.username} connected for location: ${locationId}`);
+    console.log(`Bot @${botInfo.username} connected for location: ${locationId}`);
 
     return {
       connected: true,
@@ -138,35 +113,28 @@ export class SettingsService {
     };
   }
 
-  /**
-   * Disconnect the Telegram bot from a location.
-   * Removes webhook and clears the embedded config.
-   */
-  async disconnectBot(locationId: string) {
-    const installation = await this.installationModel.findOne({ locationId });
+  async disconnectBot(locationId) {
+    const installation = await Installation.findOne({ locationId });
     const config = installation?.telegramConfig;
 
     if (!config) {
-      throw new NotFoundException('No Telegram bot configured for this location');
+      const err = new Error('No Telegram bot configured for this location');
+      err.statusCode = 404;
+      throw err;
     }
 
-    // Remove the Telegram webhook
     const botToken = this.crypto.decrypt(config.botToken);
     await this.telegram.deleteWebhook(botToken);
 
-    // Clear the embedded config
-    await this.installationModel.updateOne({ locationId }, { telegramConfig: null });
+    await Installation.updateOne({ locationId }, { telegramConfig: null });
 
-    this.logger.log(`Bot disconnected for location: ${locationId}`);
+    console.log(`Bot disconnected for location: ${locationId}`);
 
     return { connected: false, bot: null };
   }
 
-  /**
-   * Check the health of the Telegram webhook.
-   */
-  async checkStatus(locationId: string) {
-    const installation = await this.installationModel.findOne({ locationId });
+  async checkStatus(locationId) {
+    const installation = await Installation.findOne({ locationId });
     const config = installation?.telegramConfig;
 
     if (!config) {
@@ -196,22 +164,18 @@ export class SettingsService {
     }
   }
 
-  /**
-   * Get decrypted bot token for a location (internal use only).
-   */
-  async getBotToken(locationId: string): Promise<string | null> {
-    const installation = await this.installationModel.findOne({ locationId });
+  async getBotToken(locationId) {
+    const installation = await Installation.findOne({ locationId });
     const config = installation?.telegramConfig;
 
     if (!config || !config.isActive) return null;
     return this.crypto.decrypt(config.botToken);
   }
 
-  /**
-   * Get webhook secret for a location (for Telegram webhook verification).
-   */
-  async getWebhookSecret(locationId: string): Promise<string | null> {
-    const installation = await this.installationModel.findOne({ locationId });
+  async getWebhookSecret(locationId) {
+    const installation = await Installation.findOne({ locationId });
     return installation?.telegramConfig?.webhookSecret || null;
   }
 }
+
+module.exports = SettingsService;
