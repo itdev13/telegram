@@ -57,6 +57,11 @@ async function bootstrap() {
     legacyHeaders: false,
   });
 
+  // Health check
+  app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok' });
+  });
+
   // Mount routers
   app.use('/auth', createAuthRouter(authService));
   app.use('/settings', createSettingsRouter(settingsService, ssoMiddleware));
