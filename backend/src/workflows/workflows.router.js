@@ -4,6 +4,15 @@ function createWorkflowsRouter(workflowsService) {
   const router = Router();
 
   // ═══════════════════════════════════════════════════════════
+  // HEALTH CHECK - verify this route is reachable
+  // ═══════════════════════════════════════════════════════════
+
+  router.get('/health', (req, res) => {
+    console.log('[Workflows] Health check hit');
+    res.json({ status: 'ok', module: 'workflows' });
+  });
+
+  // ═══════════════════════════════════════════════════════════
   // TRIGGER SUBSCRIPTIONS
   // ═══════════════════════════════════════════════════════════
 

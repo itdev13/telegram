@@ -96,6 +96,9 @@ function createWebhooksRouter(settingsService, telegramService, ghlService, cont
       );
 
       // Step 9: Fire workflow triggers (fire-and-forget)
+      console.log(`[Workflows] workflowsService available: ${!!workflowsService}`);
+      console.log(`[Workflows] isNewContact: ${isNewContact}`);
+
       if (workflowsService) {
         const triggerPayload = {
           contactId: ghlContactId,
@@ -114,15 +117,19 @@ function createWebhooksRouter(settingsService, telegramService, ghlService, cont
           timestamp: new Date().toISOString(),
         };
 
+        console.log(`[Workflows] Firing telegram_message_received for location ${locationId}`);
         workflowsService
           .fireTrigger('telegram_message_received', locationId, triggerPayload)
-          .catch((err) => console.error(`Failed to fire message trigger: ${err.message}`));
+          .catch((err) => console.error(`[Workflows] Failed to fire message trigger: ${err.message}`));
 
         if (isNewContact) {
+          console.log(`[Workflows] Firing new_telegram_contact for location ${locationId}`);
           workflowsService
             .fireTrigger('new_telegram_contact', locationId, triggerPayload)
-            .catch((err) => console.error(`Failed to fire new contact trigger: ${err.message}`));
+            .catch((err) => console.error(`[Workflows] Failed to fire new contact trigger: ${err.message}`));
         }
+      } else {
+        console.warn('[Workflows] workflowsService is NOT available - triggers will not fire');
       }
 
       res.json({ ok: true });
