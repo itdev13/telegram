@@ -1,39 +1,36 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import axios, { AxiosError } from 'axios';
-import { TelegramBotInfo } from '../common/interfaces';
+const axios = require('axios');
 
 const TELEGRAM_API = 'https://api.telegram.org';
 
-@Injectable()
-export class TelegramService {
-  private readonly logger = new Logger(TelegramService.name);
-  private readonly backendUrl: string;
-
-  constructor(private config: ConfigService) {
-    this.backendUrl = this.config.getOrThrow('BACKEND_URL');
+class TelegramService {
+  constructor() {
+    this.backendUrl = process.env.BACKEND_URL;
+    if (!this.backendUrl) throw new Error('BACKEND_URL is required');
   }
 
   // ── Bot Validation ─────────────────────────────────────────
 
-  async validateBotToken(botToken: string): Promise<TelegramBotInfo> {
+  async validateBotToken(botToken) {
     try {
       const res = await axios.get(`${TELEGRAM_API}/bot${botToken}/getMe`);
-      return res.data.result as TelegramBotInfo;
+      return res.data.result;
     } catch (error) {
-      const axiosError = error as AxiosError;
-      if (axiosError.response?.status === 401) {
-        throw new BadRequestException(
+      if (error.response?.status === 401) {
+        const err = new Error(
           'Invalid bot token. Please check the token from BotFather and try again.',
         );
+        err.statusCode = 400;
+        throw err;
       }
-      throw new BadRequestException('Could not reach Telegram. Please try again.');
+      const err = new Error('Could not reach Telegram. Please try again.');
+      err.statusCode = 400;
+      throw err;
     }
   }
 
   // ── Webhook Management ─────────────────────────────────────
 
-  async setWebhook(botToken: string, locationId: string, webhookSecret: string): Promise<void> {
+  async setWebhook(botToken, locationId, webhookSecret) {
     const webhookUrl = `${this.backendUrl}/webhooks/telegram/${locationId}`;
 
     const res = await axios.post(`${TELEGRAM_API}/bot${botToken}/setWebhook`, {
@@ -44,32 +41,34 @@ export class TelegramService {
     });
 
     if (!res.data.ok) {
-      throw new BadRequestException(`Failed to set Telegram webhook: ${res.data.description}`);
+      const err = new Error(`Failed to set Telegram webhook: ${res.data.description}`);
+      err.statusCode = 400;
+      throw err;
     }
 
-    this.logger.log(`Webhook set for location ${locationId}: ${webhookUrl}`);
+    console.log(`Webhook set for location ${locationId}: ${webhookUrl}`);
   }
 
-  async deleteWebhook(botToken: string): Promise<void> {
+  async deleteWebhook(botToken) {
     try {
       await axios.post(`${TELEGRAM_API}/bot${botToken}/deleteWebhook`, {
         drop_pending_updates: true,
       });
-      this.logger.log('Telegram webhook deleted');
+      console.log('Telegram webhook deleted');
     } catch (error) {
-      this.logger.warn('Failed to delete Telegram webhook (may already be removed)');
+      console.warn('Failed to delete Telegram webhook (may already be removed)');
     }
   }
 
-  async getWebhookInfo(botToken: string): Promise<any> {
+  async getWebhookInfo(botToken) {
     const res = await axios.get(`${TELEGRAM_API}/bot${botToken}/getWebhookInfo`);
     return res.data.result;
   }
 
   // ── Send Messages ──────────────────────────────────────────
 
-  async sendMessage(botToken: string, chatId: number | string, text: string): Promise<number> {
-    const res = await this.callTelegramApi(botToken, 'sendMessage', {
+  async sendMessage(botToken, chatId, text) {
+    const res = await this._callTelegramApi(botToken, 'sendMessage', {
       chat_id: chatId,
       text,
       parse_mode: 'HTML',
@@ -77,13 +76,8 @@ export class TelegramService {
     return res.result.message_id;
   }
 
-  async sendPhoto(
-    botToken: string,
-    chatId: number | string,
-    photoUrl: string,
-    caption?: string,
-  ): Promise<number> {
-    const res = await this.callTelegramApi(botToken, 'sendPhoto', {
+  async sendPhoto(botToken, chatId, photoUrl, caption) {
+    const res = await this._callTelegramApi(botToken, 'sendPhoto', {
       chat_id: chatId,
       photo: photoUrl,
       caption,
@@ -91,13 +85,8 @@ export class TelegramService {
     return res.result.message_id;
   }
 
-  async sendDocument(
-    botToken: string,
-    chatId: number | string,
-    documentUrl: string,
-    caption?: string,
-  ): Promise<number> {
-    const res = await this.callTelegramApi(botToken, 'sendDocument', {
+  async sendDocument(botToken, chatId, documentUrl, caption) {
+    const res = await this._callTelegramApi(botToken, 'sendDocument', {
       chat_id: chatId,
       document: documentUrl,
       caption,
@@ -107,7 +96,7 @@ export class TelegramService {
 
   // ── File Downloads ─────────────────────────────────────────
 
-  async getFileUrl(botToken: string, fileId: string): Promise<string> {
+  async getFileUrl(botToken, fileId) {
     const res = await axios.get(`${TELEGRAM_API}/bot${botToken}/getFile?file_id=${fileId}`);
     const filePath = res.data.result.file_path;
     return `${TELEGRAM_API}/file/bot${botToken}/${filePath}`;
@@ -115,19 +104,13 @@ export class TelegramService {
 
   // ── Internal Helper ────────────────────────────────────────
 
-  private async callTelegramApi(
-    botToken: string,
-    method: string,
-    data: any,
-    retries = 3,
-  ): Promise<any> {
+  async _callTelegramApi(botToken, method, data, retries = 3) {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
         const res = await axios.post(`${TELEGRAM_API}/bot${botToken}/${method}`, data);
         return res.data;
       } catch (error) {
-        const axiosError = error as AxiosError;
-        const status = axiosError.response?.status;
+        const status = error.response?.status;
 
         // Don't retry on client errors (except 429 rate limit)
         if (status && status >= 400 && status < 500 && status !== 429) {
@@ -136,21 +119,21 @@ export class TelegramService {
 
         // Rate limited — wait and retry
         if (status === 429) {
-          const retryAfter = (axiosError.response?.data as any)?.parameters?.retry_after || 5;
-          this.logger.warn(
+          const retryAfter = error.response?.data?.parameters?.retry_after || 5;
+          console.warn(
             `Telegram rate limited, waiting ${retryAfter}s (attempt ${attempt}/${retries})`,
           );
-          await this.sleep(retryAfter * 1000);
+          await this._sleep(retryAfter * 1000);
           continue;
         }
 
         // Transient error — exponential backoff
         if (attempt < retries) {
           const delay = Math.pow(2, attempt) * 1000;
-          this.logger.warn(
+          console.warn(
             `Telegram API error, retrying in ${delay}ms (attempt ${attempt}/${retries})`,
           );
-          await this.sleep(delay);
+          await this._sleep(delay);
         } else {
           throw error;
         }
@@ -158,7 +141,9 @@ export class TelegramService {
     }
   }
 
-  private sleep(ms: number): Promise<void> {
+  _sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
+
+module.exports = TelegramService;

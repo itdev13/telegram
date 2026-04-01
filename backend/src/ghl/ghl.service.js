@@ -1,47 +1,35 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
-import { AuthService } from '../auth/auth.service';
-import { GhlContact } from '../common/interfaces';
+const axios = require('axios');
 
-@Injectable()
-export class GhlService {
-  private readonly logger = new Logger(GhlService.name);
-  private readonly apiBase: string;
-  private readonly apiVersion: string;
-
-  constructor(
-    private authService: AuthService,
-    private config: ConfigService,
-  ) {
-    this.apiBase = this.config.getOrThrow('GHL_API_BASE');
-    this.apiVersion = this.config.getOrThrow('GHL_API_VERSION');
+class GhlService {
+  constructor(authService) {
+    this.authService = authService;
+    this.apiBase = process.env.GHL_API_BASE;
+    this.apiVersion = process.env.GHL_API_VERSION;
+    if (!this.apiBase) throw new Error('GHL_API_BASE is required');
+    if (!this.apiVersion) throw new Error('GHL_API_VERSION is required');
   }
 
   // ── API Request Wrapper (401 retry + 429 backoff) ───────────
 
-  private async apiRequest<T = any>(
-    locationId: string,
-    requestFn: (token: string) => Promise<AxiosResponse<T>>,
-  ): Promise<AxiosResponse<T>> {
+  async _apiRequest(locationId, requestFn) {
     let token = await this.authService.getAccessToken(locationId);
-    let lastError: any;
+    let lastError;
 
     // Try with current token, retry once on 401
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        return await this.executeWithBackoff(() => requestFn(token));
-      } catch (error: any) {
+        return await this._executeWithBackoff(() => requestFn(token));
+      } catch (error) {
         lastError = error;
         if (attempt === 0 && error?.response?.status === 401) {
-          this.logger.warn(
+          console.warn(
             `401 for ${locationId}, refreshing token and retrying` +
               ` | Response: ${JSON.stringify(error?.response?.data)}`,
           );
           token = await this.authService.getAccessToken(locationId);
           continue;
         }
-        this.logger.error(
+        console.error(
           `GHL API error for ${locationId}` +
             ` | Status: ${error?.response?.status}` +
             ` | Response: ${JSON.stringify(error?.response?.data)}`,
@@ -53,17 +41,17 @@ export class GhlService {
     throw lastError;
   }
 
-  private async executeWithBackoff<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
-    let lastError: any;
+  async _executeWithBackoff(fn, maxRetries = 3) {
+    let lastError;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         return await fn();
-      } catch (error: any) {
+      } catch (error) {
         lastError = error;
         if (error?.response?.status === 429 && attempt < maxRetries - 1) {
-          const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
-          this.logger.warn(`429 rate limited, backing off ${delay}ms`);
+          const delay = Math.pow(2, attempt) * 1000;
+          console.warn(`429 rate limited, backing off ${delay}ms`);
           await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
@@ -76,13 +64,8 @@ export class GhlService {
 
   // ── Contacts ───────────────────────────────────────────────
 
-  async createContact(
-    locationId: string,
-    firstName: string,
-    lastName?: string,
-    extraFields?: Record<string, any>,
-  ): Promise<GhlContact> {
-    const res = await this.apiRequest(locationId, (token) =>
+  async createContact(locationId, firstName, lastName, extraFields) {
+    const res = await this._apiRequest(locationId, (token) =>
       axios.post(
         `${this.apiBase}/contacts/`,
         {
@@ -102,17 +85,13 @@ export class GhlService {
       ),
     );
 
-    this.logger.log(`Created GHL contact: ${res.data.contact.id}`);
+    console.log(`Created GHL contact: ${res.data.contact.id}`);
     return res.data.contact;
   }
 
-  async searchContactByCustomField(
-    locationId: string,
-    fieldKey: string,
-    value: string,
-  ): Promise<GhlContact | null> {
+  async searchContactByCustomField(locationId, fieldKey, value) {
     try {
-      const res = await this.apiRequest(locationId, (token) =>
+      const res = await this._apiRequest(locationId, (token) =>
         axios.get(`${this.apiBase}/contacts/search`, {
           params: { locationId, query: value },
           headers: {
@@ -131,17 +110,8 @@ export class GhlService {
 
   // ── Inbound Messages (Telegram → GHL) ──────────────────────
 
-  async addInboundMessage(
-    locationId: string,
-    payload: {
-      conversationProviderId: string;
-      contactId: string;
-      message?: string;
-      attachments?: string[];
-      altId?: string;
-    },
-  ): Promise<{ conversationId: string; messageId: string }> {
-    const res = await this.apiRequest(locationId, (token) =>
+  async addInboundMessage(locationId, payload) {
+    const res = await this._apiRequest(locationId, (token) =>
       axios.post(
         `${this.apiBase}/conversations/messages/inbound`,
         {
@@ -158,7 +128,7 @@ export class GhlService {
       ),
     );
 
-    this.logger.log(
+    console.log(
       `Inbound message added: conversationId=${res.data.conversationId}, messageId=${res.data.messageId}`,
     );
 
@@ -170,14 +140,9 @@ export class GhlService {
 
   // ── Message Status Updates ─────────────────────────────────
 
-  async updateMessageStatus(
-    locationId: string,
-    messageId: string,
-    status: 'delivered' | 'failed' | 'sent',
-    error?: string,
-  ): Promise<void> {
+  async updateMessageStatus(locationId, messageId, status, error) {
     try {
-      await this.apiRequest(locationId, (token) =>
+      await this._apiRequest(locationId, (token) =>
         axios.put(
           `${this.apiBase}/conversations/messages/${messageId}/status`,
           {
@@ -193,18 +158,15 @@ export class GhlService {
           },
         ),
       );
-      this.logger.log(`Message ${messageId} status updated to: ${status}`);
+      console.log(`Message ${messageId} status updated to: ${status}`);
     } catch (err) {
-      this.logger.error(`Failed to update message status: ${messageId}`, err);
+      console.error(`Failed to update message status: ${messageId}`, err);
     }
   }
 
   // ── Company Locations ──────────────────────────────────────
 
-  async getCompanyLocations(
-    accessToken: string,
-    companyId: string,
-  ): Promise<Array<{ id: string; name: string }>> {
+  async getCompanyLocations(accessToken, companyId) {
     const res = await axios.get(`${this.apiBase}/locations/search`, {
       params: { companyId },
       headers: {
@@ -216,3 +178,5 @@ export class GhlService {
     return res.data.locations || [];
   }
 }
+
+module.exports = GhlService;
