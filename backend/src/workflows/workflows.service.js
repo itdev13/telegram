@@ -100,12 +100,35 @@ class WorkflowsService {
       }
 
       const results = await Promise.allSettled(
-        subscriptions.map((sub) => {
+        subscriptions.map(async (sub) => {
           console.log(`[Workflows] POSTing to targetUrl: ${sub.targetUrl} (workflow: ${sub.workflowId})`);
-          return axios.post(sub.targetUrl, eventData, {
-            headers,
-            timeout: 10000,
-          });
+          console.log(`[Workflows] Headers: ${JSON.stringify({ ...headers, Authorization: headers.Authorization ? 'Bearer ***' + headers.Authorization.slice(-8) : 'NONE' })}`);
+          console.log(`[Workflows] Payload: ${JSON.stringify(eventData)}`);
+          // Try with auth first, then without if 401
+          for (const attempt of ['with_auth', 'without_auth']) {
+            const reqHeaders = attempt === 'with_auth'
+              ? headers
+              : { 'Content-Type': 'application/json' };
+
+            try {
+              console.log(`[Workflows] Attempt: ${attempt}`);
+              const response = await axios.post(sub.targetUrl, eventData, {
+                headers: reqHeaders,
+                timeout: 10000,
+              });
+              console.log(`[Workflows] Response status: ${response.status}`);
+              console.log(`[Workflows] Response data: ${JSON.stringify(response.data)}`);
+              return response;
+            } catch (err) {
+              console.error(`[Workflows] ${attempt} — Error status: ${err.response?.status}`);
+              console.error(`[Workflows] ${attempt} — Error data: ${JSON.stringify(err.response?.data || err.message)}`);
+              if (attempt === 'with_auth' && err.response?.status === 401) {
+                console.log(`[Workflows] Retrying without auth header...`);
+                continue;
+              }
+              throw err;
+            }
+          }
         }),
       );
 
