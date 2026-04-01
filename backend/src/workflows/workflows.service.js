@@ -94,7 +94,10 @@ class WorkflowsService {
         `[Workflows] Firing trigger ${triggerKey} for location ${locationId} → ${subscriptions.length} subscription(s) (auth: ${!!accessToken})`,
       );
 
-      const headers = { 'Content-Type': 'application/json' };
+      const headers = {
+        'Content-Type': 'application/json',
+        'Version': process.env.GHL_API_VERSION || '2021-07-28',
+      };
       if (accessToken) {
         headers['Authorization'] = `Bearer ${accessToken}`;
       }
@@ -104,30 +107,18 @@ class WorkflowsService {
           console.log(`[Workflows] POSTing to targetUrl: ${sub.targetUrl} (workflow: ${sub.workflowId})`);
           console.log(`[Workflows] Headers: ${JSON.stringify({ ...headers, Authorization: headers.Authorization ? 'Bearer ***' + headers.Authorization.slice(-8) : 'NONE' })}`);
           console.log(`[Workflows] Payload: ${JSON.stringify(eventData)}`);
-          // Try with auth first, then without if 401
-          for (const attempt of ['with_auth', 'without_auth']) {
-            const reqHeaders = attempt === 'with_auth'
-              ? headers
-              : { 'Content-Type': 'application/json' };
-
-            try {
-              console.log(`[Workflows] Attempt: ${attempt}`);
-              const response = await axios.post(sub.targetUrl, eventData, {
-                headers: reqHeaders,
-                timeout: 10000,
-              });
-              console.log(`[Workflows] Response status: ${response.status}`);
-              console.log(`[Workflows] Response data: ${JSON.stringify(response.data)}`);
-              return response;
-            } catch (err) {
-              console.error(`[Workflows] ${attempt} — Error status: ${err.response?.status}`);
-              console.error(`[Workflows] ${attempt} — Error data: ${JSON.stringify(err.response?.data || err.message)}`);
-              if (attempt === 'with_auth' && err.response?.status === 401) {
-                console.log(`[Workflows] Retrying without auth header...`);
-                continue;
-              }
-              throw err;
-            }
+          try {
+            const response = await axios.post(sub.targetUrl, eventData, {
+              headers,
+              timeout: 10000,
+            });
+            console.log(`[Workflows] Response status: ${response.status}`);
+            console.log(`[Workflows] Response data: ${JSON.stringify(response.data)}`);
+            return response;
+          } catch (err) {
+            console.error(`[Workflows] Error status: ${err.response?.status}`);
+            console.error(`[Workflows] Error data: ${JSON.stringify(err.response?.data || err.message)}`);
+            throw err;
           }
         }),
       );
