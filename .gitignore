@@ -30,4 +30,7 @@ npm-debug.log*
 # Netlify
 .netlify/
 
+# Temporary media files
+tmp/
+
 ##
