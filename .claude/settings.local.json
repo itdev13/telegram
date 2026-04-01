@@ -4,7 +4,8 @@
       "WebFetch(domain:marketplace.gohighlevel.com)",
       "Bash(npm run:*)",
       "Bash(npx nest:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(node -e \":*)"
     ]
   }
 }

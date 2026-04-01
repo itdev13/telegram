@@ -21,6 +21,8 @@ const { createSettingsRouter } = require('./settings/settings.router');
 const { createWebhooksRouter } = require('./webhooks/webhooks.router');
 const { createBillingRouter } = require('./billing/billing.router');
 const { createReferralRouter } = require('./referral/referral.router');
+const { createWorkflowsRouter } = require('./workflows/workflows.router');
+const WorkflowsService = require('./workflows/workflows.service');
 
 // Middleware
 const { createSsoMiddleware } = require('./auth/guards/sso.middleware');
@@ -38,6 +40,7 @@ async function bootstrap() {
   const settingsService = new SettingsService(cryptoService, telegramService, authService);
   const billingService = new BillingService(authService);
   const referralService = new ReferralService();
+  const workflowsService = new WorkflowsService(contactMappingService, settingsService, telegramService);
 
   // Create SSO middleware
   const ssoMiddleware = createSsoMiddleware(authService);
@@ -68,10 +71,11 @@ async function bootstrap() {
   app.use(
     '/webhooks',
     webhookLimiter,
-    createWebhooksRouter(settingsService, telegramService, ghlService, contactMappingService),
+    createWebhooksRouter(settingsService, telegramService, ghlService, contactMappingService, workflowsService),
   );
   app.use('/billing', createBillingRouter(billingService, authService));
   app.use('/referrals', createReferralRouter(referralService));
+  app.use('/workflows', createWorkflowsRouter(workflowsService));
 
   // Global error handler
   app.use((err, req, res, next) => {
