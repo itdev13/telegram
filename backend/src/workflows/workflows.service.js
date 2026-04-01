@@ -2,10 +2,11 @@ const axios = require('axios');
 const WorkflowSubscription = require('../schemas/workflow-subscription.schema');
 
 class WorkflowsService {
-  constructor(contactMappingService, settingsService, telegramService) {
+  constructor(contactMappingService, settingsService, telegramService, authService) {
     this.contactMapping = contactMappingService;
     this.settings = settingsService;
     this.telegram = telegramService;
+    this.auth = authService;
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -40,7 +41,7 @@ class WorkflowsService {
             meta,
             status: 'active',
           },
-          { upsert: true, new: true },
+          { upsert: true, returnDocument: 'after' },
         );
         console.log(`Subscription upserted: ${triggerKey} for workflow ${workflowId}`);
         break;
@@ -81,15 +82,28 @@ class WorkflowsService {
         return;
       }
 
+      // Get access token for authenticated trigger execution
+      let accessToken = null;
+      try {
+        accessToken = await this.auth.getAccessToken(locationId);
+      } catch (err) {
+        console.error(`[Workflows] Failed to get access token for ${locationId}: ${err.message}`);
+      }
+
       console.log(
-        `[Workflows] Firing trigger ${triggerKey} for location ${locationId} → ${subscriptions.length} subscription(s)`,
+        `[Workflows] Firing trigger ${triggerKey} for location ${locationId} → ${subscriptions.length} subscription(s) (auth: ${!!accessToken})`,
       );
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
 
       const results = await Promise.allSettled(
         subscriptions.map((sub) => {
           console.log(`[Workflows] POSTing to targetUrl: ${sub.targetUrl} (workflow: ${sub.workflowId})`);
           return axios.post(sub.targetUrl, eventData, {
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             timeout: 10000,
           });
         }),
