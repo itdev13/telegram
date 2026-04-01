@@ -157,3 +157,60 @@ export interface GhlLocationTokenResponse {
   token_type: string;
   locationId: string;
 }
+
+// ── GHL Workflow Trigger Subscription ─────────────────
+
+export interface GhlTriggerSubscriptionPayload {
+  triggerData: {
+    id: string;
+    key: string;
+    filters: Record<string, any>[];
+    eventType: 'CREATED' | 'UPDATED' | 'DELETED';
+    targetUrl: string;
+  };
+  meta: {
+    key: string;
+    version: string;
+  };
+  extras: {
+    locationId: string;
+    workflowId: string;
+    companyId: string;
+  };
+}
+
+// ── GHL Workflow Action Payload ───────────────────────
+
+export interface GhlActionPayload {
+  data: Record<string, any>;
+  extras: {
+    locationId: string;
+    contactId: string;
+    workflowId: string;
+  };
+  meta: {
+    key: string;
+    version: string;
+  };
+  branches?: any[];
+}
+
+// ── Trigger Event Payload (what we POST to targetUrl) ─
+
+export interface TriggerEventPayload {
+  contactId: string;
+  telegramChatId: number;
+  telegramUsername: string;
+  telegramFirstName: string;
+  messageText: string;
+  messageType: 'text' | 'photo' | 'document' | 'other';
+  telegramMessageId: number;
+  timestamp: string;
+}
+
+// ── Contact Mapping Result ────────────────────────────
+
+export interface ContactMappingResult {
+  ghlContactId: string;
+  isNew: boolean;
+}

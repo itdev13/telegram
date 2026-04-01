@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ContactMapping, ContactMappingDocument } from '../schemas/contact-mapping.schema';
 import { GhlService } from '../ghl/ghl.service';
-import { TelegramUser } from '../common/interfaces';
+import { TelegramUser, ContactMappingResult } from '../common/interfaces';
 
 @Injectable()
 export class ContactMappingService {
@@ -23,7 +23,7 @@ export class ContactMappingService {
     locationId: string,
     telegramUser: TelegramUser,
     chatId: number,
-  ): Promise<string> {
+  ): Promise<ContactMappingResult> {
     // Check existing mapping
     const existing = await this.contactMappingModel.findOne({
       locationId,
@@ -31,7 +31,7 @@ export class ContactMappingService {
     });
 
     if (existing) {
-      return existing.ghlContactId;
+      return { ghlContactId: existing.ghlContactId, isNew: false };
     }
 
     // Create new GHL contact
@@ -69,7 +69,7 @@ export class ContactMappingService {
 
     this.logger.log(`Contact mapping created: chat ${chatId} → GHL contact ${contact.id}`);
 
-    return contact.id;
+    return { ghlContactId: contact.id, isNew: true };
   }
 
   /**

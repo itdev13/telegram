@@ -11,6 +11,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { ContactMappingModule } from './contact-mapping/contact-mapping.module';
 import { ReferralModule } from './referral/referral.module';
 import { BillingModule } from './billing/billing.module';
+import { WorkflowsModule } from './workflows/workflows.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { BillingModule } from './billing/billing.module';
     ContactMappingModule,
     ReferralModule,
     BillingModule,
+    WorkflowsModule,
   ],
 })
 export class AppModule {}

@@ -25,7 +25,8 @@ import { SettingsService } from '../settings/settings.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { GhlService } from '../ghl/ghl.service';
 import { ContactMappingService } from '../contact-mapping/contact-mapping.service';
-import { TelegramUpdate, GhlOutboundPayload } from '../common/interfaces';
+import { TelegramUpdate, GhlOutboundPayload, TriggerEventPayload } from '../common/interfaces';
+import { WorkflowsService } from '../workflows/workflows.service';
 
 @Controller('webhooks')
 export class WebhooksController {
@@ -46,6 +47,7 @@ export class WebhooksController {
     private telegram: TelegramService,
     private ghl: GhlService,
     private contactMapping: ContactMappingService,
+    private workflows: WorkflowsService,
   ) {}
 
   // ═══════════════════════════════════════════════════════════
@@ -80,11 +82,8 @@ export class WebhooksController {
 
     try {
       // Step 3: Get or create the GHL contact
-      const ghlContactId = await this.contactMapping.getOrCreateContact(
-        locationId,
-        telegramUser,
-        chatId,
-      );
+      const { ghlContactId, isNew: isNewContact } =
+        await this.contactMapping.getOrCreateContact(locationId, telegramUser, chatId);
 
       // Step 4: Get the installation's conversation provider ID
       const installation = await this.installationModel.findOne({ locationId });
@@ -139,6 +138,38 @@ export class WebhooksController {
       this.logger.log(
         `Inbound message synced: Telegram chat ${chatId} → GHL message ${result.messageId}`,
       );
+
+      // Step 9: Fire workflow triggers (fire-and-forget)
+      const triggerPayload: TriggerEventPayload = {
+        contactId: ghlContactId,
+        telegramChatId: chatId,
+        telegramUsername: telegramUser.username || '',
+        telegramFirstName: telegramUser.first_name,
+        messageText: messageText,
+        messageType: message.text
+          ? 'text'
+          : message.photo
+            ? 'photo'
+            : message.document
+              ? 'document'
+              : 'other',
+        telegramMessageId: message.message_id,
+        timestamp: new Date().toISOString(),
+      };
+
+      this.workflows
+        .fireTrigger('telegram_message_received', locationId, triggerPayload)
+        .catch((err) =>
+          this.logger.error(`Failed to fire message trigger: ${err.message}`),
+        );
+
+      if (isNewContact) {
+        this.workflows
+          .fireTrigger('new_telegram_contact', locationId, triggerPayload)
+          .catch((err) =>
+            this.logger.error(`Failed to fire new contact trigger: ${err.message}`),
+          );
+      }
 
       return { ok: true };
     } catch (error: any) {

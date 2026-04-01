@@ -13,6 +13,7 @@ import { ArchivedToken, ArchivedTokenSchema } from '../schemas/archived-token.sc
 import { CompanyToken, CompanyTokenSchema } from '../schemas/company-token.schema';
 import { CompanyLocation, CompanyLocationSchema } from '../schemas/company-location.schema';
 import { Referral, ReferralSchema } from '../schemas/referral.schema';
+import { WorkflowsModule } from '../workflows/workflows.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { Referral, ReferralSchema } from '../schemas/referral.schema';
     GhlModule,
     ContactMappingModule,
     AuthModule,
+    WorkflowsModule,
     MongooseModule.forFeature([
       { name: Installation.name, schema: InstallationSchema },
       { name: MessageLog.name, schema: MessageLogSchema },
