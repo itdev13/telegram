@@ -14,6 +14,8 @@ const ContactMappingService = require('./contact-mapping/contact-mapping.service
 const SettingsService = require('./settings/settings.service');
 const BillingService = require('./billing/billing.service');
 const ReferralService = require('./referral/referral.service');
+const ConnectionManager = require('./telegram/connection-manager');
+const GramJsService = require('./telegram/gramjs.service');
 
 // Routers
 const { createAuthRouter } = require('./auth/auth.router');
@@ -21,6 +23,7 @@ const { createSettingsRouter } = require('./settings/settings.router');
 const { createWebhooksRouter } = require('./webhooks/webhooks.router');
 const { createBillingRouter } = require('./billing/billing.router');
 const { createReferralRouter } = require('./referral/referral.router');
+const { createMediaRouter, cleanupExpiredMedia } = require('./media/media.router');
 const { createWorkflowsRouter } = require('./workflows/workflows.router');
 const WorkflowsService = require('./workflows/workflows.service');
 
@@ -40,6 +43,14 @@ async function bootstrap() {
   const settingsService = new SettingsService(cryptoService, telegramService, authService);
   const billingService = new BillingService(authService);
   const referralService = new ReferralService();
+  const connectionManager = new ConnectionManager(cryptoService);
+  const gramJsService = new GramJsService(
+    connectionManager,
+    cryptoService,
+    ghlService,
+    contactMappingService,
+    telegramService,
+  );
   const workflowsService = new WorkflowsService(contactMappingService, settingsService, telegramService);
 
   // Create SSO middleware
@@ -67,15 +78,32 @@ async function bootstrap() {
 
   // Mount routers
   app.use('/auth', createAuthRouter(authService));
-  app.use('/settings', createSettingsRouter(settingsService, ssoMiddleware));
+  app.use('/settings', createSettingsRouter(settingsService, gramJsService, ssoMiddleware));
   app.use(
     '/webhooks',
     webhookLimiter,
-    createWebhooksRouter(settingsService, telegramService, ghlService, contactMappingService, workflowsService),
+    createWebhooksRouter(
+      settingsService,
+      telegramService,
+      ghlService,
+      contactMappingService,
+      connectionManager,
+      workflowsService,
+    ),
   );
   app.use('/billing', createBillingRouter(billingService, authService));
   app.use('/referrals', createReferralRouter(referralService));
+  app.use('/media', createMediaRouter());
   app.use('/workflows', createWorkflowsRouter(workflowsService));
+
+  // Clean up expired media files on startup and every 30 minutes
+  cleanupExpiredMedia();
+  setInterval(cleanupExpiredMedia, 30 * 60 * 1000);
+
+  // Initialize phone connections (staggered reconnect)
+  gramJsService.initAllClients().catch((err) => {
+    console.error('Failed to initialize phone connections:', err);
+  });
 
   // Global error handler
   app.use((err, req, res, next) => {
@@ -84,6 +112,15 @@ async function bootstrap() {
       error: err.message || 'Internal server error',
     });
   });
+
+  // Graceful shutdown — disconnect all GramJS clients
+  const shutdown = async () => {
+    console.log('Shutting down — disconnecting GramJS clients...');
+    await connectionManager.disconnectAll();
+    process.exit(0);
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 
   const port = process.env.PORT || 3000;
   app.listen(port, () => {

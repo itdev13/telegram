@@ -133,8 +133,46 @@ const api = {
       };
     }
 
+    if (path.includes('/phone/send-code')) {
+      return { success: true, data: { phoneCodeHash: 'mock_hash_123' } };
+    }
+
+    if (path.includes('/phone/verify-code')) {
+      return {
+        success: true,
+        data: {
+          connected: true,
+          user: {
+            telegramUserId: '123456789',
+            telegramUsername: 'JohnFromAcme',
+            displayName: 'John Smith',
+            phoneNumber: body?.phoneNumber || '+1234567890',
+          },
+        },
+      };
+    }
+
+    if (path.includes('/phone/verify-2fa')) {
+      return {
+        success: true,
+        data: {
+          connected: true,
+          user: {
+            telegramUserId: '123456789',
+            telegramUsername: 'JohnFromAcme',
+            displayName: 'John Smith',
+            phoneNumber: '+1234567890',
+          },
+        },
+      };
+    }
+
+    if (path.includes('/phone/disconnect')) {
+      return { connected: false, connectionType: 'bot' };
+    }
+
     // GET config
-    return { connected: false, bot: null };
+    return { connectionType: 'bot', connected: false, bot: null };
   },
 };
 
@@ -198,6 +236,20 @@ function ChevronDown({ open }) {
   );
 }
 
+function PhoneIcon({ size = 24 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path
+        d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.362 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0122 16.92z"
+        stroke="#6B7280"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function ExternalLink() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -238,6 +290,12 @@ export default function App() {
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
   const [tokenVisible, setTokenVisible] = useState(false);
   const [testResult, setTestResult] = useState(null);
+  const [connectionType, setConnectionType] = useState(null); // null | 'bot' | 'phone'
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneCode, setPhoneCode] = useState('');
+  const [twoFaPassword, setTwoFaPassword] = useState('');
+  const [phoneStep, setPhoneStep] = useState('input'); // input | code | 2fa | connecting
+  const [phoneInfo, setPhoneInfo] = useState(null);
 
   // Fetch existing config once SSO resolves
   useEffect(() => {
@@ -255,8 +313,13 @@ export default function App() {
     const fetchConfig = async () => {
       try {
         const config = await api.call('GET', `/settings/${user.locationId}`, ssoPayload);
-        if (config.connected && config.bot) {
+        if (config.connectionType === 'phone' && config.connected && config.phone) {
+          setPhoneInfo(config.phone);
+          setConnectionType('phone');
+          setAppState('connected');
+        } else if (config.connected && config.bot) {
           setBotInfo(config.bot);
+          setConnectionType('bot');
           setAppState('connected');
         } else {
           setAppState('disconnected');
@@ -316,6 +379,7 @@ export default function App() {
     setBotInfo(null);
     setBotToken('');
     setTestResult(null);
+    setConnectionType(null);
   };
 
   // ── Test connection handler ────────────────────────
@@ -332,6 +396,93 @@ export default function App() {
     if (!success) {
       setTimeout(() => setTestResult(null), 4000);
     }
+  };
+
+  // ── Phone auth handlers ──────────────────────────────
+  const handleSendCode = async () => {
+    if (!phoneNumber.trim() || !/^\+[1-9]\d{6,14}$/.test(phoneNumber.trim())) {
+      setErrorMsg('Please enter a valid phone number in international format (+1234567890)');
+      return;
+    }
+    setErrorMsg('');
+    setPhoneStep('connecting');
+    try {
+      await api.call('POST', `/settings/${user.locationId}/phone/send-code`, ssoPayload, {
+        phoneNumber: phoneNumber.trim(),
+      });
+      setPhoneStep('code');
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to send code');
+      setPhoneStep('input');
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (!phoneCode.trim()) {
+      setErrorMsg('Please enter the verification code');
+      return;
+    }
+    setErrorMsg('');
+    setPhoneStep('connecting');
+    try {
+      const result = await api.call(
+        'POST',
+        `/settings/${user.locationId}/phone/verify-code`,
+        ssoPayload,
+        { phoneCode: phoneCode.trim() },
+      );
+      if (result.data?.require2FA) {
+        setPhoneStep('2fa');
+      } else if (result.data?.connected) {
+        setPhoneInfo(result.data.user);
+        setConnectionType('phone');
+        setAppState('connected');
+      }
+    } catch (err) {
+      setErrorMsg(err.message || 'Invalid code');
+      setPhoneStep('code');
+    }
+  };
+
+  const handleVerify2FA = async () => {
+    if (!twoFaPassword.trim()) {
+      setErrorMsg('Please enter your 2FA password');
+      return;
+    }
+    setErrorMsg('');
+    setPhoneStep('connecting');
+    try {
+      const result = await api.call(
+        'POST',
+        `/settings/${user.locationId}/phone/verify-2fa`,
+        ssoPayload,
+        { password: twoFaPassword },
+      );
+      if (result.data?.connected) {
+        setPhoneInfo(result.data.user);
+        setConnectionType('phone');
+        setAppState('connected');
+      }
+    } catch (err) {
+      setErrorMsg(err.message || 'Incorrect password');
+      setPhoneStep('2fa');
+    }
+  };
+
+  const handlePhoneDisconnect = async () => {
+    setShowDisconnectConfirm(false);
+    try {
+      await api.call('DELETE', `/settings/${user.locationId}/phone/disconnect`, ssoPayload);
+    } catch (err) {
+      console.error('Phone disconnect failed:', err);
+    }
+    setAppState('disconnected');
+    setPhoneInfo(null);
+    setConnectionType(null);
+    setPhoneNumber('');
+    setPhoneCode('');
+    setTwoFaPassword('');
+    setPhoneStep('input');
   };
 
   // ════════════════════════════════════════════════════
@@ -373,7 +524,93 @@ export default function App() {
   }
 
   // ════════════════════════════════════════════════════
-  // RENDER: Connected State
+  // RENDER: Phone Connected State
+  // ════════════════════════════════════════════════════
+  if (appState === 'connected' && connectionType === 'phone' && phoneInfo) {
+    const maskedPhone = phoneInfo.phoneNumber
+      ? phoneInfo.phoneNumber.slice(0, 4) + ' ***-***-' + phoneInfo.phoneNumber.slice(-4)
+      : 'Connected';
+
+    return (
+      <div style={styles.container}>
+        <DevBanner user={user} />
+        <div style={styles.header}>
+          <div style={styles.headerLeft}>
+            <div style={styles.logoWrapper}><TelegramIcon size={32} /></div>
+            <div>
+              <h1 style={styles.title}>TeleSync</h1>
+              <p style={styles.subtitle}>Telegram integration for GoHighLevel</p>
+            </div>
+          </div>
+          <div style={styles.statusBadge}><span style={styles.statusDot} />Connected</div>
+        </div>
+
+        <div style={styles.connectedCard}>
+          <div style={styles.connectedHeader}>
+            <CheckCircle />
+            <span style={styles.connectedTitle}>Phone Number Connected</span>
+          </div>
+          <div style={styles.botInfoGrid}>
+            <div style={styles.botInfoItem}>
+              <span style={styles.botInfoLabel}>Phone</span>
+              <span style={styles.botInfoValue}>{maskedPhone}</span>
+            </div>
+            <div style={styles.botInfoItem}>
+              <span style={styles.botInfoLabel}>Username</span>
+              <span style={styles.botInfoValue}>
+                {phoneInfo.telegramUsername ? `@${phoneInfo.telegramUsername}` : 'N/A'}
+              </span>
+            </div>
+            <div style={styles.botInfoItem}>
+              <span style={styles.botInfoLabel}>Name</span>
+              <span style={styles.botInfoValue}>{phoneInfo.displayName || 'N/A'}</span>
+            </div>
+            <div style={styles.botInfoItem}>
+              <span style={styles.botInfoLabel}>Status</span>
+              <span style={{ ...styles.botInfoValue, color: '#22C55E' }}>Active</span>
+            </div>
+          </div>
+          <div style={styles.connectedNote}>
+            <PhoneIcon size={16} />
+            <span>
+              Private messages sent to your Telegram account will appear in your GHL Conversations tab.
+            </span>
+          </div>
+          <div style={styles.connectedActions}>
+            {phoneInfo.telegramUsername && (
+              <button
+                style={styles.ghostBtn}
+                onClick={() => window.open(`https://t.me/${phoneInfo.telegramUsername}`, '_blank')}
+              >
+                Open in Telegram <ExternalLink />
+              </button>
+            )}
+            <button style={styles.dangerBtn} onClick={() => setShowDisconnectConfirm(true)}>
+              Disconnect Phone
+            </button>
+          </div>
+        </div>
+
+        {showDisconnectConfirm && (
+          <div style={styles.modalOverlay}>
+            <div style={styles.modal}>
+              <h3 style={styles.modalTitle}>Disconnect Phone Number?</h3>
+              <p style={styles.modalText}>
+                This will stop syncing messages between your Telegram account and GoHighLevel for this location.
+              </p>
+              <div style={styles.modalActions}>
+                <button style={styles.secondaryBtn} onClick={() => setShowDisconnectConfirm(false)}>Cancel</button>
+                <button style={styles.dangerBtn} onClick={handlePhoneDisconnect}>Yes, Disconnect</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ════════════════════════════════════════════════════
+  // RENDER: Bot Connected State
   // ════════════════════════════════════════════════════
   if (appState === 'connected' && botInfo) {
     return (
@@ -513,8 +750,120 @@ export default function App() {
         </div>
       </div>
 
-      {/* Setup Card */}
+      {/* Connection Type Selector */}
+      {!connectionType && (
+        <div style={styles.typeSelector}>
+          <h2 style={styles.setupTitle}>Choose Connection Type</h2>
+          <p style={styles.setupDescription}>
+            Select how you want to connect Telegram to this location.
+          </p>
+          <div style={styles.typeTiles}>
+            <button style={styles.typeTile} onClick={() => setConnectionType('bot')}>
+              <TelegramIcon size={28} />
+              <div style={styles.typeTileTitle}>Telegram Bot</div>
+              <div style={styles.typeTileDesc}>
+                Create a bot via @BotFather. Customers message the bot.
+              </div>
+            </button>
+            <button style={styles.typeTile} onClick={() => setConnectionType('phone')}>
+              <PhoneIcon size={28} />
+              <div style={styles.typeTileTitle}>Phone Number</div>
+              <div style={styles.typeTileDesc}>
+                Connect your Telegram account. Customers message you directly.
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Phone Auth Form */}
+      {connectionType === 'phone' && (
+        <div style={styles.setupCard}>
+          <button style={styles.backBtn} onClick={() => { setConnectionType(null); setErrorMsg(''); setPhoneStep('input'); }}>
+            &#8592; Back
+          </button>
+          <h2 style={styles.setupTitle}>Connect Phone Number</h2>
+
+          {phoneStep === 'input' && (
+            <>
+              <p style={styles.setupDescription}>
+                Enter your Telegram phone number. We will send a verification code to your Telegram app.
+              </p>
+              <div style={styles.inputGroup}>
+                <label style={styles.inputLabel}>Phone Number</label>
+                <input
+                  style={{ ...styles.input, ...(errorMsg ? { borderColor: '#EF4444' } : {}), paddingRight: 14 }}
+                  type="tel"
+                  placeholder="+1234567890"
+                  value={phoneNumber}
+                  onChange={(e) => { setPhoneNumber(e.target.value); setErrorMsg(''); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSendCode(); }}
+                />
+                {errorMsg && <div style={styles.errorMsg}><AlertCircle /><span>{errorMsg}</span></div>}
+              </div>
+              <button style={styles.primaryBtn} onClick={handleSendCode}>Send Code</button>
+            </>
+          )}
+
+          {phoneStep === 'code' && (
+            <>
+              <p style={styles.setupDescription}>
+                Enter the code sent to your Telegram app for <strong>{phoneNumber}</strong>.
+              </p>
+              <div style={styles.inputGroup}>
+                <label style={styles.inputLabel}>Verification Code</label>
+                <input
+                  style={{ ...styles.input, ...(errorMsg ? { borderColor: '#EF4444' } : {}), paddingRight: 14 }}
+                  type="text"
+                  placeholder="12345"
+                  value={phoneCode}
+                  onChange={(e) => { setPhoneCode(e.target.value); setErrorMsg(''); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleVerifyCode(); }}
+                  autoFocus
+                />
+                {errorMsg && <div style={styles.errorMsg}><AlertCircle /><span>{errorMsg}</span></div>}
+              </div>
+              <button style={styles.primaryBtn} onClick={handleVerifyCode}>Verify Code</button>
+            </>
+          )}
+
+          {phoneStep === '2fa' && (
+            <>
+              <p style={styles.setupDescription}>
+                Your account has two-factor authentication. Enter your cloud password.
+              </p>
+              <div style={styles.inputGroup}>
+                <label style={styles.inputLabel}>2FA Password</label>
+                <input
+                  style={{ ...styles.input, ...(errorMsg ? { borderColor: '#EF4444' } : {}), paddingRight: 14 }}
+                  type="password"
+                  placeholder="Your cloud password"
+                  value={twoFaPassword}
+                  onChange={(e) => { setTwoFaPassword(e.target.value); setErrorMsg(''); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleVerify2FA(); }}
+                  autoFocus
+                />
+                {errorMsg && <div style={styles.errorMsg}><AlertCircle /><span>{errorMsg}</span></div>}
+              </div>
+              <button style={styles.primaryBtn} onClick={handleVerify2FA}>Submit Password</button>
+            </>
+          )}
+
+          {phoneStep === 'connecting' && (
+            <div style={styles.loadingWrapper}>
+              <Loader />
+              <p style={styles.loadingText}>Connecting...</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Bot Setup Card */}
+      {connectionType === 'bot' && (
       <div style={styles.setupCard}>
+        <button style={styles.backBtn} onClick={() => { setConnectionType(null); setErrorMsg(''); }}>
+          &#8592; Back
+        </button>
         <h2 style={styles.setupTitle}>Connect Your Telegram Bot</h2>
         <p style={styles.setupDescription}>
           To get started, you'll need a Telegram Bot Token from <strong>@BotFather</strong>. If you
@@ -647,6 +996,7 @@ export default function App() {
           )}
         </button>
       </div>
+      )}
 
       {/* How it works */}
       <div style={styles.howItWorks}>
@@ -1144,4 +1494,56 @@ const styles = {
     lineHeight: 1.6,
   },
   modalActions: { display: 'flex', gap: 10, justifyContent: 'flex-end' },
+
+  // Type selector
+  typeSelector: {
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
+    borderRadius: 16,
+    padding: '28px 28px 24px',
+    marginBottom: 24,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+  },
+  typeTiles: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 16,
+    marginTop: 16,
+  },
+  typeTile: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 10,
+    padding: 24,
+    background: '#F9FAFB',
+    border: '2px solid #E5E7EB',
+    borderRadius: 12,
+    cursor: 'pointer',
+    textAlign: 'center',
+    transition: 'border-color 0.15s, background 0.15s',
+  },
+  typeTileTitle: {
+    fontSize: 15,
+    fontWeight: 600,
+    color: '#111827',
+  },
+  typeTileDesc: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 1.5,
+  },
+  backBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '6px 0',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: 500,
+    marginBottom: 12,
+  },
 };

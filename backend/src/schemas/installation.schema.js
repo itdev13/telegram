@@ -13,6 +13,21 @@ const TelegramConfigSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const PhoneConfigSchema = new mongoose.Schema(
+  {
+    phoneNumber: { type: String, required: true },
+    sessionString: { type: String, required: true },
+    telegramUserId: { type: String },
+    telegramUsername: { type: String },
+    displayName: { type: String },
+    isActive: { type: Boolean, default: true },
+    lastActivityAt: { type: Date },
+    connectedAt: { type: Date, default: () => new Date() },
+    updatedAt: { type: Date, default: () => new Date() },
+  },
+  { _id: false },
+);
+
 const InstallationSchema = new mongoose.Schema(
   {
     companyId: { type: String, required: true },
@@ -25,9 +40,13 @@ const InstallationSchema = new mongoose.Schema(
     uninstalledAt: { type: Date },
     referralCode: { type: String },
     conversationProviderId: { type: String, default: '' },
+    connectionType: { type: String, enum: ['bot', 'phone'], default: 'bot' },
     telegramConfig: { type: TelegramConfigSchema, default: null },
+    phoneConfig: { type: PhoneConfigSchema, default: null },
   },
   { collection: 'installations', timestamps: true },
 );
+
+InstallationSchema.index({ connectionType: 1, 'phoneConfig.isActive': 1 });
 
 module.exports = mongoose.model('Installation', InstallationSchema);

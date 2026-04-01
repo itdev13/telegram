@@ -4,12 +4,20 @@ const { MessageLog, MessageDirection, MessageStatus } = require('../schemas/mess
 const ArchivedToken = require('../schemas/archived-token.schema');
 const CompanyLocation = require('../schemas/company-location.schema');
 const Referral = require('../schemas/referral.schema');
+const PhoneAuthSession = require('../schemas/phone-auth-session.schema');
 
-function createWebhooksRouter(settingsService, telegramService, ghlService, contactMappingService, workflowsService) {
+function createWebhooksRouter(
+  settingsService,
+  telegramService,
+  ghlService,
+  contactMappingService,
+  connectionManager,
+  workflowsService,
+) {
   const router = Router();
 
   // ═══════════════════════════════════════════════════════════
-  // INBOUND: Telegram → GHL
+  // INBOUND: Telegram → GHL (Bot API webhooks only)
   // ═══════════════════════════════════════════════════════════
 
   router.post('/telegram/:locationId', async (req, res) => {
@@ -189,41 +197,84 @@ function createWebhooksRouter(settingsService, telegramService, ghlService, cont
         return res.json({ ok: false });
       }
 
-      // Step 2: Get the bot token for this location
-      const botToken = await settingsService.getBotToken(locationId);
-      if (!botToken) {
-        console.error(`No active bot for location: ${locationId}`);
-        await ghlService.updateMessageStatus(
-          locationId,
-          messageId,
-          'failed',
-          'No Telegram bot configured',
-        );
-        return res.json({ ok: false });
-      }
+      // Step 2: Check connection type and send via appropriate transport
+      const installation = await Installation.findOne({ locationId });
+      const isPhone = installation?.connectionType === 'phone';
 
-      // Step 3: Send the message via Telegram
       let telegramMessageId;
 
-      if (message) {
-        telegramMessageId = await telegramService.sendMessage(botToken, telegramChatId, message);
-      }
+      if (isPhone) {
+        // Phone connection — use ConnectionManager (GramJS)
+        if (message) {
+          telegramMessageId = await connectionManager.sendMessage(
+            locationId,
+            telegramChatId,
+            message,
+          );
+        }
 
-      if (attachments && attachments.length > 0) {
-        for (const attachmentUrl of attachments) {
-          const isImage = /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(attachmentUrl);
-          if (isImage) {
-            telegramMessageId = await telegramService.sendPhoto(
-              botToken,
-              telegramChatId,
-              attachmentUrl,
-            );
-          } else {
-            telegramMessageId = await telegramService.sendDocument(
-              botToken,
-              telegramChatId,
-              attachmentUrl,
-            );
+        if (attachments && attachments.length > 0) {
+          for (const attachmentUrl of attachments) {
+            const isImage = /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(attachmentUrl);
+            if (isImage) {
+              telegramMessageId = await connectionManager.sendPhoto(
+                locationId,
+                telegramChatId,
+                attachmentUrl,
+              );
+            } else {
+              telegramMessageId = await connectionManager.sendDocument(
+                locationId,
+                telegramChatId,
+                attachmentUrl,
+              );
+            }
+          }
+        }
+
+        // Update activity timestamp
+        await Installation.updateOne(
+          { locationId },
+          { 'phoneConfig.lastActivityAt': new Date() },
+        );
+      } else {
+        // Bot connection — existing flow (fetch bot token here, not earlier)
+        const botToken = await settingsService.getBotToken(locationId);
+        if (!botToken) {
+          console.error(`No active bot for location: ${locationId}`);
+          await ghlService.updateMessageStatus(
+            locationId,
+            messageId,
+            'failed',
+            'No Telegram bot configured',
+          );
+          return res.json({ ok: false });
+        }
+
+        if (message) {
+          telegramMessageId = await telegramService.sendMessage(
+            botToken,
+            telegramChatId,
+            message,
+          );
+        }
+
+        if (attachments && attachments.length > 0) {
+          for (const attachmentUrl of attachments) {
+            const isImage = /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(attachmentUrl);
+            if (isImage) {
+              telegramMessageId = await telegramService.sendPhoto(
+                botToken,
+                telegramChatId,
+                attachmentUrl,
+              );
+            } else {
+              telegramMessageId = await telegramService.sendDocument(
+                botToken,
+                telegramChatId,
+                attachmentUrl,
+              );
+            }
           }
         }
       }
@@ -285,7 +336,13 @@ function createWebhooksRouter(settingsService, telegramService, ghlService, cont
       case 'INSTALL':
         return await handleAppInstall(req.body, res);
       case 'UNINSTALL':
-        return await handleAppUninstall(req.body, settingsService, telegramService, res);
+        return await handleAppUninstall(
+          req.body,
+          settingsService,
+          telegramService,
+          connectionManager,
+          res,
+        );
       default:
         console.warn(`Unknown app lifecycle event type: ${type}`);
         return res.json({ ok: true });
@@ -311,7 +368,13 @@ async function handleAppInstall(payload, res) {
   res.json({ ok: true });
 }
 
-async function handleAppUninstall(payload, settingsService, telegramService, res) {
+async function handleAppUninstall(
+  payload,
+  settingsService,
+  telegramService,
+  connectionManager,
+  res,
+) {
   const locationId = payload.locationId;
   console.log(`App uninstalled for location: ${locationId}`);
 
@@ -343,6 +406,16 @@ async function handleAppUninstall(payload, settingsService, telegramService, res
           refreshToken: '',
         },
       );
+
+      // Clean up phone connection if active
+      if (installation.connectionType === 'phone') {
+        try {
+          await connectionManager.disconnect(locationId);
+        } catch (err) {
+          console.warn(`Failed to disconnect phone for ${locationId}:`, err.message);
+        }
+        await Installation.updateOne({ locationId }, { phoneConfig: null });
+      }
     }
 
     // Clean up Telegram webhook
@@ -353,6 +426,9 @@ async function handleAppUninstall(payload, settingsService, telegramService, res
 
     // Clear Telegram bot config
     await Installation.updateOne({ locationId }, { telegramConfig: null });
+
+    // Clean up any pending phone auth sessions
+    await PhoneAuthSession.deleteOne({ locationId });
 
     // Update referral status
     await Referral.updateMany(
