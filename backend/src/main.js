@@ -60,6 +60,9 @@ async function bootstrap() {
   // Create Express app
   const app = express();
 
+  // Trust proxy (behind nginx/cloudflare)
+  app.set('trust proxy', 1);
+
   // Global middleware
   app.use(express.json());
   app.use(cors({ origin: true, credentials: true }));

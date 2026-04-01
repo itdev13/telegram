@@ -339,6 +339,9 @@ function createWebhooksRouter(
     switch (type) {
       case 'INSTALL':
         return await handleAppInstall(req.body, res);
+      case 'UPDATE':
+        // App scope/settings updated — re-record location mapping
+        return await handleAppInstall(req.body, res);
       case 'UNINSTALL':
         return await handleAppUninstall(
           req.body,
