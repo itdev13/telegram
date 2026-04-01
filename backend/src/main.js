@@ -24,6 +24,8 @@ const { createWebhooksRouter } = require('./webhooks/webhooks.router');
 const { createBillingRouter } = require('./billing/billing.router');
 const { createReferralRouter } = require('./referral/referral.router');
 const { createMediaRouter, cleanupExpiredMedia } = require('./media/media.router');
+const { createWorkflowsRouter } = require('./workflows/workflows.router');
+const WorkflowsService = require('./workflows/workflows.service');
 
 // Middleware
 const { createSsoMiddleware } = require('./auth/guards/sso.middleware');
@@ -49,6 +51,7 @@ async function bootstrap() {
     contactMappingService,
     telegramService,
   );
+  const workflowsService = new WorkflowsService(contactMappingService, settingsService, telegramService);
 
   // Create SSO middleware
   const ssoMiddleware = createSsoMiddleware(authService);
@@ -85,11 +88,13 @@ async function bootstrap() {
       ghlService,
       contactMappingService,
       connectionManager,
+      workflowsService,
     ),
   );
   app.use('/billing', createBillingRouter(billingService, authService));
   app.use('/referrals', createReferralRouter(referralService));
   app.use('/media', createMediaRouter());
+  app.use('/workflows', createWorkflowsRouter(workflowsService));
 
   // Clean up expired media files on startup and every 30 minutes
   cleanupExpiredMedia();

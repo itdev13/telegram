@@ -12,6 +12,7 @@ function createWebhooksRouter(
   ghlService,
   contactMappingService,
   connectionManager,
+  workflowsService,
 ) {
   const router = Router();
 
@@ -45,11 +46,8 @@ function createWebhooksRouter(
 
     try {
       // Step 3: Get or create the GHL contact
-      const ghlContactId = await contactMappingService.getOrCreateContact(
-        locationId,
-        telegramUser,
-        chatId,
-      );
+      const { ghlContactId, isNew: isNewContact } =
+        await contactMappingService.getOrCreateContact(locationId, telegramUser, chatId);
 
       // Step 4: Get the installation's conversation provider ID
       const installation = await Installation.findOne({ locationId });
@@ -104,6 +102,36 @@ function createWebhooksRouter(
       console.log(
         `Inbound message synced: Telegram chat ${chatId} → GHL message ${result.messageId}`,
       );
+
+      // Step 9: Fire workflow triggers (fire-and-forget)
+      if (workflowsService) {
+        const triggerPayload = {
+          contactId: ghlContactId,
+          telegramChatId: chatId,
+          telegramUsername: telegramUser.username || '',
+          telegramFirstName: telegramUser.first_name,
+          messageText: messageText,
+          messageType: message.text
+            ? 'text'
+            : message.photo
+              ? 'photo'
+              : message.document
+                ? 'document'
+                : 'other',
+          telegramMessageId: message.message_id,
+          timestamp: new Date().toISOString(),
+        };
+
+        workflowsService
+          .fireTrigger('telegram_message_received', locationId, triggerPayload)
+          .catch((err) => console.error(`Failed to fire message trigger: ${err.message}`));
+
+        if (isNewContact) {
+          workflowsService
+            .fireTrigger('new_telegram_contact', locationId, triggerPayload)
+            .catch((err) => console.error(`Failed to fire new contact trigger: ${err.message}`));
+        }
+      }
 
       res.json({ ok: true });
     } catch (error) {

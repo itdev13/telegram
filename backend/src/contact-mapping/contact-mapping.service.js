@@ -13,7 +13,7 @@ class ContactMappingService {
     });
 
     if (existing) {
-      return existing.ghlContactId;
+      return { ghlContactId: existing.ghlContactId, isNew: false };
     }
 
     // Create new GHL contact
@@ -51,7 +51,7 @@ class ContactMappingService {
 
     console.log(`Contact mapping created: chat ${chatId} → GHL contact ${contact.id}`);
 
-    return contact.id;
+    return { ghlContactId: contact.id, isNew: true };
   }
 
   async getTelegramChatId(locationId, ghlContactId) {
