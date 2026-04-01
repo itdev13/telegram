@@ -7,12 +7,13 @@ const PendingUpdate = require('../schemas/pending-update.schema');
 const { MessageLog, MessageDirection, MessageStatus } = require('../schemas/message-log.schema');
 
 class GramJsService {
-  constructor(connectionManager, cryptoService, ghlService, contactMappingService, telegramService) {
+  constructor(connectionManager, cryptoService, ghlService, contactMappingService, telegramService, workflowsService) {
     this.connectionManager = connectionManager;
     this.crypto = cryptoService;
     this.ghlService = ghlService;
     this.contactMapping = contactMappingService;
     this.telegramService = telegramService;
+    this.workflows = workflowsService;
 
     const apiId = parseInt(process.env.TELEGRAM_API_ID, 10);
     const apiHash = process.env.TELEGRAM_API_HASH;
@@ -189,23 +190,11 @@ class GramJsService {
     // (two clients sharing the same auth key causes AUTH_KEY_DUPLICATED)
     await client.destroy();
 
-    // Check if location has an existing bot — tear it down
-    const existing = await Installation.findOne({ locationId });
-    if (existing?.telegramConfig && this.telegramService) {
-      try {
-        const botToken = this.crypto.decrypt(existing.telegramConfig.botToken);
-        await this.telegramService.deleteWebhook(botToken);
-      } catch (err) {
-        console.warn(`Failed to clean up old bot webhook for ${locationId}:`, err.message);
-      }
-    }
-
-    // Save phone config to Installation
+    // Save phone config to Installation (preserve existing bot connection)
     await Installation.findOneAndUpdate(
       { locationId },
       {
         connectionType: 'phone',
-        telegramConfig: null,
         phoneConfig: {
           phoneNumber,
           sessionString: encryptedSession,
@@ -284,10 +273,11 @@ class GramJsService {
       const telegramUser = senderInfo;
 
       // Step 4: Get or create GHL contact
-      const ghlContactId = await this.contactMapping.getOrCreateContact(
+      const { ghlContactId, isNew: isNewContact } = await this.contactMapping.getOrCreateContact(
         locationId,
         telegramUser,
         chatIdNum,
+        'phone',
       );
 
       // Step 5: Get installation for conversation provider ID
@@ -348,6 +338,32 @@ class GramJsService {
       console.log(
         `Phone inbound synced: chat ${chatIdNum} → GHL message ${result.messageId} (location ${locationId})`,
       );
+
+      // Step 12: Fire workflow triggers (fire-and-forget)
+      if (this.workflows) {
+        const triggerPayload = {
+          contactId: ghlContactId,
+          telegramChatId: chatIdNum,
+          telegramUsername: telegramUser.username || '',
+          telegramFirstName: telegramUser.first_name,
+          messageText: messageText,
+          messageType: message.media ? 'photo' : 'text',
+          telegramMessageId: message.id,
+          timestamp: new Date().toISOString(),
+        };
+
+        console.log(`[Workflows] Firing telegram_message_received for location ${locationId} (phone)`);
+        this.workflows
+          .fireTrigger('telegram_message_received', locationId, triggerPayload)
+          .catch((err) => console.error(`[Workflows] Failed to fire message trigger: ${err.message}`));
+
+        if (isNewContact) {
+          console.log(`[Workflows] Firing new_telegram_contact for location ${locationId} (phone)`);
+          this.workflows
+            .fireTrigger('new_telegram_contact', locationId, triggerPayload)
+            .catch((err) => console.error(`[Workflows] Failed to fire new contact trigger: ${err.message}`));
+        }
+      }
     } catch (error) {
       console.error(
         `Failed to process phone inbound for location ${locationId}:`,
@@ -467,10 +483,11 @@ class GramJsService {
           last_name: '',
           username: '',
         };
-        const ghlContactId = await this.contactMapping.getOrCreateContact(
+        const { ghlContactId } = await this.contactMapping.getOrCreateContact(
           update.locationId,
           senderInfo,
           parsed.chatId,
+          'phone',
         );
 
         await this.ghlService.addInboundMessage(update.locationId, {

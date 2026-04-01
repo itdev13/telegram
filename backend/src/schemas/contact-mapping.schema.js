@@ -7,6 +7,7 @@ const ContactMappingSchema = new mongoose.Schema(
     ghlContactId: { type: String, required: true },
     telegramUsername: { type: String },
     telegramFirstName: { type: String, required: true },
+    source: { type: String, enum: ['bot', 'phone'], default: 'bot' },
   },
   { collection: 'contact_mappings', timestamps: { createdAt: true, updatedAt: false } },
 );

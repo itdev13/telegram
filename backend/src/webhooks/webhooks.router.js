@@ -5,6 +5,7 @@ const ArchivedToken = require('../schemas/archived-token.schema');
 const CompanyLocation = require('../schemas/company-location.schema');
 const Referral = require('../schemas/referral.schema');
 const PhoneAuthSession = require('../schemas/phone-auth-session.schema');
+const ContactMapping = require('../schemas/contact-mapping.schema');
 
 function createWebhooksRouter(
   settingsService,
@@ -197,9 +198,12 @@ function createWebhooksRouter(
         return res.json({ ok: false });
       }
 
-      // Step 2: Check connection type and send via appropriate transport
+      // Step 2: Determine transport (bot or phone) based on contact source
       const installation = await Installation.findOne({ locationId });
-      const isPhone = installation?.connectionType === 'phone';
+      const mapping = await ContactMapping.findOne({ locationId, ghlContactId: contactId });
+      const hasPhone = !!(installation?.phoneConfig?.isActive && connectionManager?.isConnected?.(locationId));
+      const hasBot = !!(installation?.telegramConfig?.isActive);
+      const isPhone = mapping?.source === 'phone' ? hasPhone : !hasBot && hasPhone;
 
       let telegramMessageId;
 

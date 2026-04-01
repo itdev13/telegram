@@ -5,7 +5,7 @@ class ContactMappingService {
     this.ghlService = ghlService;
   }
 
-  async getOrCreateContact(locationId, telegramUser, chatId) {
+  async getOrCreateContact(locationId, telegramUser, chatId, source = 'bot') {
     // Check existing mapping
     const existing = await ContactMapping.findOne({
       locationId,
@@ -47,6 +47,7 @@ class ContactMappingService {
       ghlContactId: contact.id,
       telegramUsername: telegramUser.username || undefined,
       telegramFirstName: telegramUser.first_name,
+      source,
     });
 
     console.log(`Contact mapping created: chat ${chatId} → GHL contact ${contact.id}`);
@@ -61,6 +62,10 @@ class ContactMappingService {
     });
 
     return mapping?.telegramChatId || null;
+  }
+
+  async getContactMapping(locationId, ghlContactId) {
+    return ContactMapping.findOne({ locationId, ghlContactId });
   }
 }
 

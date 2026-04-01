@@ -194,7 +194,6 @@ class ConnectionManager {
     }
 
     const installations = await Installation.find({
-      connectionType: 'phone',
       'phoneConfig.isActive': true,
       'phoneConfig.sessionString': { $exists: true, $ne: '' },
     }).sort({ 'phoneConfig.lastActivityAt': -1 });

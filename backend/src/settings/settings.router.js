@@ -16,29 +16,41 @@ function createSettingsRouter(settingsService, gramJsService, ssoMiddleware) {
     message: { error: 'Too many code requests. Please wait before trying again.' },
   });
 
-  // GET /settings/:locationId
+  // GET /settings/:locationId — returns both bot and phone connection status
   router.get('/:locationId', async (req, res) => {
     try {
-      // Check for phone connection first
       const installation = await Installation.findOne({ locationId: req.params.locationId });
 
-      if (installation?.connectionType === 'phone' && installation.phoneConfig) {
-        return res.json({
-          connectionType: 'phone',
-          connected: installation.phoneConfig.isActive,
-          phone: {
-            phoneNumber: installation.phoneConfig.phoneNumber,
-            telegramUsername: installation.phoneConfig.telegramUsername,
-            displayName: installation.phoneConfig.displayName,
-            isActive: installation.phoneConfig.isActive,
-            connectedAt: installation.phoneConfig.connectedAt,
-          },
-        });
-      }
+      const botConfig = installation?.telegramConfig;
+      const phoneConfig = installation?.phoneConfig;
 
-      // Default: bot connection (existing flow)
-      const result = await settingsService.getConfig(req.params.locationId);
-      res.json({ connectionType: 'bot', ...result });
+      const botConnected = !!(botConfig && botConfig.isActive);
+      const phoneConnected = !!(phoneConfig && phoneConfig.isActive);
+
+      res.json({
+        botConnected,
+        phoneConnected,
+        bot: botConnected
+          ? {
+              username: botConfig.botUsername,
+              id: botConfig.botId,
+              isActive: botConfig.isActive,
+              connectedAt: botConfig.connectedAt,
+            }
+          : null,
+        phone: phoneConnected
+          ? {
+              phoneNumber: phoneConfig.phoneNumber,
+              telegramUsername: phoneConfig.telegramUsername,
+              displayName: phoneConfig.displayName,
+              isActive: phoneConfig.isActive,
+              connectedAt: phoneConfig.connectedAt,
+            }
+          : null,
+        // backward compat
+        connectionType: installation?.connectionType || 'bot',
+        connected: botConnected || phoneConnected,
+      });
     } catch (error) {
       res.status(error.statusCode || 500).json({ error: error.message });
     }
@@ -143,20 +155,17 @@ function createSettingsRouter(settingsService, gramJsService, ssoMiddleware) {
       // Destroy GramJS client
       await gramJsService.destroyClient(locationId);
 
-      // Clear phone config and reset to bot mode
+      // Clear phone config only (preserve bot connection if exists)
       await Installation.updateOne(
         { locationId },
-        {
-          connectionType: 'bot',
-          phoneConfig: null,
-        },
+        { phoneConfig: null },
       );
 
       // Clean up any pending auth sessions
       await PhoneAuthSession.deleteOne({ locationId });
 
       console.log(`Phone disconnected for location: ${locationId}`);
-      res.json({ connected: false, connectionType: 'bot' });
+      res.json({ success: true });
     } catch (error) {
       res.status(error.statusCode || 500).json({ error: error.message });
     }

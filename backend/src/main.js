@@ -43,6 +43,7 @@ async function bootstrap() {
   const settingsService = new SettingsService(cryptoService, telegramService, authService);
   const billingService = new BillingService(authService);
   const referralService = new ReferralService();
+  const workflowsService = new WorkflowsService(contactMappingService, settingsService, telegramService);
   const connectionManager = new ConnectionManager(cryptoService);
   const gramJsService = new GramJsService(
     connectionManager,
@@ -50,8 +51,8 @@ async function bootstrap() {
     ghlService,
     contactMappingService,
     telegramService,
+    workflowsService,
   );
-  const workflowsService = new WorkflowsService(contactMappingService, settingsService, telegramService);
 
   // Create SSO middleware
   const ssoMiddleware = createSsoMiddleware(authService);
