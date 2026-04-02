@@ -122,16 +122,27 @@ class ConnectionManager {
     return entry?.connected === true;
   }
 
+  // Check if a phone connection exists (in memory OR in database)
+  async hasPhoneConfig(locationId) {
+    if (this.isConnected(locationId)) return true;
+    const inst = await Installation.findOne({
+      locationId,
+      'phoneConfig.isActive': true,
+      'phoneConfig.sessionString': { $exists: true, $ne: '' },
+    }).lean();
+    return !!inst;
+  }
+
   // ── Messaging ────────────────────────────────────────
 
   async sendMessage(locationId, chatId, text) {
-    const client = this._getClientOrThrow(locationId);
+    const client = await this._getClientOrThrow(locationId);
     const result = await client.sendMessage(chatId, { message: text });
     return result.id;
   }
 
   async sendPhoto(locationId, chatId, photoUrl, caption) {
-    const client = this._getClientOrThrow(locationId);
+    const client = await this._getClientOrThrow(locationId);
     const result = await client.sendMessage(chatId, {
       file: photoUrl,
       message: caption || '',
@@ -140,7 +151,7 @@ class ConnectionManager {
   }
 
   async sendDocument(locationId, chatId, documentUrl, caption) {
-    const client = this._getClientOrThrow(locationId);
+    const client = await this._getClientOrThrow(locationId);
     const result = await client.sendMessage(chatId, {
       file: documentUrl,
       message: caption || '',
@@ -150,14 +161,14 @@ class ConnectionManager {
   }
 
   async downloadMedia(locationId, media) {
-    const client = this._getClientOrThrow(locationId);
+    const client = await this._getClientOrThrow(locationId);
     return client.downloadMedia(media);
   }
 
   // ── Advanced Methods ───────────────────────────────────
 
   async sendReaction(locationId, chatId, messageId, emoji) {
-    const client = this._getClientOrThrow(locationId);
+    const client = await this._getClientOrThrow(locationId);
     await client.invoke(
       new Api.messages.SendReaction({
         peer: chatId,
@@ -169,7 +180,7 @@ class ConnectionManager {
   }
 
   async forwardMessage(locationId, fromChatId, toChatId, messageId) {
-    const client = this._getClientOrThrow(locationId);
+    const client = await this._getClientOrThrow(locationId);
     const result = await client.forwardMessages(toChatId, {
       messages: [messageId],
       fromPeer: fromChatId,
@@ -178,25 +189,25 @@ class ConnectionManager {
   }
 
   async editMessage(locationId, chatId, messageId, text) {
-    const client = this._getClientOrThrow(locationId);
+    const client = await this._getClientOrThrow(locationId);
     await client.editMessage(chatId, { message: messageId, text });
     return true;
   }
 
   async deleteMessage(locationId, chatId, messageId) {
-    const client = this._getClientOrThrow(locationId);
+    const client = await this._getClientOrThrow(locationId);
     await client.deleteMessages(chatId, [messageId], { revoke: true });
     return true;
   }
 
   async pinMessage(locationId, chatId, messageId) {
-    const client = this._getClientOrThrow(locationId);
+    const client = await this._getClientOrThrow(locationId);
     await client.pinMessage(chatId, messageId);
     return true;
   }
 
   async generateInviteLink(locationId, chatId) {
-    const client = this._getClientOrThrow(locationId);
+    const client = await this._getClientOrThrow(locationId);
     const result = await client.invoke(
       new Api.messages.ExportChatInvite({ peer: chatId }),
     );
@@ -204,13 +215,13 @@ class ConnectionManager {
   }
 
   async sendToGroup(locationId, groupId, text) {
-    const client = this._getClientOrThrow(locationId);
+    const client = await this._getClientOrThrow(locationId);
     const result = await client.sendMessage(groupId, { message: text });
     return result.id;
   }
 
   async sendFileToGroup(locationId, groupId, fileUrl, caption) {
-    const client = this._getClientOrThrow(locationId);
+    const client = await this._getClientOrThrow(locationId);
     const result = await client.sendMessage(groupId, {
       file: fileUrl,
       message: caption || '',
@@ -220,7 +231,7 @@ class ConnectionManager {
   }
 
   async editGroupPermissions(locationId, chatId, permissions) {
-    const client = this._getClientOrThrow(locationId);
+    const client = await this._getClientOrThrow(locationId);
     await client.invoke(
       new Api.messages.EditChatDefaultBannedRights({
         peer: chatId,
@@ -281,55 +292,50 @@ class ConnectionManager {
       return;
     }
 
-    const installations = await Installation.find({
+    // Count active phone connections (don't connect them yet — lazy reconnect)
+    const count = await Installation.countDocuments({
       'phoneConfig.isActive': true,
       'phoneConfig.sessionString': { $exists: true, $ne: '' },
-    }).sort({ 'phoneConfig.lastActivityAt': -1 });
+    });
 
-    if (installations.length === 0) {
+    if (count === 0) {
       console.log('No active phone connections to restore');
-      return;
+    } else {
+      console.log(`${count} phone connection(s) found — will reconnect lazily on first message`);
     }
+  }
 
-    console.log(`Restoring ${installations.length} phone connections (staggered)...`);
+  // Lazy reconnect: restore a single phone connection from saved session
+  async _lazyReconnect(locationId) {
+    const installation = await Installation.findOne({
+      locationId,
+      'phoneConfig.isActive': true,
+      'phoneConfig.sessionString': { $exists: true, $ne: '' },
+    });
 
-    const BATCH_SIZE = 5;
-    const BATCH_DELAY_MS = 3000;
+    if (!installation) return null;
 
-    for (let i = 0; i < installations.length; i += BATCH_SIZE) {
-      const batch = installations.slice(i, i + BATCH_SIZE);
-
-      await Promise.allSettled(
-        batch.map(async (inst) => {
-          try {
-            await this.connect(inst.locationId, inst.phoneConfig.sessionString);
-          } catch (error) {
-            if (error.message?.includes('FLOOD_WAIT')) {
-              const seconds = parseInt(error.message.split('_').pop(), 10) || 60;
-              console.warn(`FLOOD_WAIT for ${inst.locationId}: waiting ${seconds}s`);
-            } else {
-              console.error(
-                `Failed to restore connection for ${inst.locationId}:`,
-                error.message,
-              );
-            }
-          }
-        }),
-      );
-
-      // Delay between batches (except after the last one)
-      if (i + BATCH_SIZE < installations.length) {
-        await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
-      }
+    console.log(`[LazyReconnect] Restoring phone connection for ${locationId}...`);
+    try {
+      await this.connect(locationId, installation.phoneConfig.sessionString);
+      console.log(`[LazyReconnect] Phone reconnected for ${locationId}`);
+      return this.getClient(locationId);
+    } catch (error) {
+      console.error(`[LazyReconnect] Failed for ${locationId}: ${error.message}`);
+      return null;
     }
-
-    console.log(`GramJS init complete: ${this.clients.size}/${installations.length} connected`);
   }
 
   // ── Internal Helpers ─────────────────────────────────
 
-  _getClientOrThrow(locationId) {
-    const client = this.getClient(locationId);
+  async _getClientOrThrow(locationId) {
+    let client = this.getClient(locationId);
+
+    // Lazy reconnect: if not connected, try to restore from saved session
+    if (!client) {
+      client = await this._lazyReconnect(locationId);
+    }
+
     if (!client) {
       const err = new Error(`No active phone connection for location: ${locationId}`);
       err.statusCode = 400;

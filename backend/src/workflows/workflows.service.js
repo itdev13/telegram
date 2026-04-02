@@ -360,9 +360,9 @@ class WorkflowsService {
     if (!mapping) throw new Error('Contact has no Telegram mapping. The user must message first.');
 
     const chatId = mapping.telegramChatId;
-    const contactSource = mapping.source || 'bot'; // 'bot' or 'phone'
+    const contactSource = mapping.source || 'bot';
 
-    const hasPhone = this.connectionManager?.isConnected?.(locationId);
+    const hasPhone = await this.connectionManager?.hasPhoneConfig?.(locationId);
     const botToken = await this.settings.getBotToken(locationId);
 
     if (!hasPhone && !botToken) throw new Error('No Telegram connection configured. Connect a bot or phone in TeleSync settings.');
@@ -374,7 +374,6 @@ class WorkflowsService {
     } else if (contactSource === 'bot' && botToken) {
       transport = 'bot';
     } else {
-      // Fallback: use whatever is connected
       transport = hasPhone ? 'phone' : 'bot';
     }
 
@@ -384,7 +383,7 @@ class WorkflowsService {
 
   // Resolve transport only (for group actions without contactId)
   async _resolveTransport(locationId) {
-    const hasPhone = this.connectionManager?.isConnected?.(locationId);
+    const hasPhone = await this.connectionManager?.hasPhoneConfig?.(locationId);
     const botToken = await this.settings.getBotToken(locationId);
 
     if (!hasPhone && !botToken) throw new Error('No Telegram connection configured. Connect a bot or phone in TeleSync settings.');
