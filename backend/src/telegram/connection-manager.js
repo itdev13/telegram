@@ -1,4 +1,4 @@
-const { TelegramClient } = require('telegram');
+const { TelegramClient, Api } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const { NewMessage } = require('telegram/events');
 const Installation = require('../schemas/installation.schema');
@@ -152,6 +152,94 @@ class ConnectionManager {
   async downloadMedia(locationId, media) {
     const client = this._getClientOrThrow(locationId);
     return client.downloadMedia(media);
+  }
+
+  // ── Advanced Methods ───────────────────────────────────
+
+  async sendReaction(locationId, chatId, messageId, emoji) {
+    const client = this._getClientOrThrow(locationId);
+    await client.invoke(
+      new Api.messages.SendReaction({
+        peer: chatId,
+        msgId: messageId,
+        reaction: [new Api.ReactionEmoji({ emoticon: emoji })],
+      }),
+    );
+    return true;
+  }
+
+  async forwardMessage(locationId, fromChatId, toChatId, messageId) {
+    const client = this._getClientOrThrow(locationId);
+    const result = await client.forwardMessages(toChatId, {
+      messages: [messageId],
+      fromPeer: fromChatId,
+    });
+    return result[0]?.id;
+  }
+
+  async editMessage(locationId, chatId, messageId, text) {
+    const client = this._getClientOrThrow(locationId);
+    await client.editMessage(chatId, { message: messageId, text });
+    return true;
+  }
+
+  async deleteMessage(locationId, chatId, messageId) {
+    const client = this._getClientOrThrow(locationId);
+    await client.deleteMessages(chatId, [messageId], { revoke: true });
+    return true;
+  }
+
+  async pinMessage(locationId, chatId, messageId) {
+    const client = this._getClientOrThrow(locationId);
+    await client.pinMessage(chatId, messageId);
+    return true;
+  }
+
+  async generateInviteLink(locationId, chatId) {
+    const client = this._getClientOrThrow(locationId);
+    const result = await client.invoke(
+      new Api.messages.ExportChatInvite({ peer: chatId }),
+    );
+    return result.link;
+  }
+
+  async sendToGroup(locationId, groupId, text) {
+    const client = this._getClientOrThrow(locationId);
+    const result = await client.sendMessage(groupId, { message: text });
+    return result.id;
+  }
+
+  async sendFileToGroup(locationId, groupId, fileUrl, caption) {
+    const client = this._getClientOrThrow(locationId);
+    const result = await client.sendMessage(groupId, {
+      file: fileUrl,
+      message: caption || '',
+      forceDocument: true,
+    });
+    return result.id;
+  }
+
+  async editGroupPermissions(locationId, chatId, permissions) {
+    const client = this._getClientOrThrow(locationId);
+    await client.invoke(
+      new Api.messages.EditChatDefaultBannedRights({
+        peer: chatId,
+        bannedRights: new Api.ChatBannedRights({
+          untilDate: 0,
+          sendMessages: !permissions.sendMessages,
+          sendMedia: !permissions.sendMedia,
+          sendStickers: !permissions.sendStickers,
+          sendGifs: !permissions.sendGifs,
+          sendInline: !permissions.sendInline,
+          embedLinks: !permissions.embedLinks,
+          sendPolls: !permissions.sendPolls,
+          changeInfo: !permissions.changeInfo,
+          inviteUsers: !permissions.inviteUsers,
+          pinMessages: !permissions.pinMessages,
+        }),
+      }),
+    );
+    return true;
   }
 
   // ── Event Handlers ───────────────────────────────────

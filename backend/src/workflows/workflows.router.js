@@ -52,34 +52,130 @@ function createWorkflowsRouter(workflowsService) {
     }
   });
 
-  router.post('/actions/send-photo', async (req, res) => {
+  // ═══════════════════════════════════════════════════════════
+  // BOT ACTIONS (Advanced)
+  // ═══════════════════════════════════════════════════════════
+
+  router.post('/actions/send-buttons', async (req, res) => {
     const payload = req.body;
-
-    console.log(
-      `Action send-photo: location=${payload.extras?.locationId}, contact=${payload.extras?.contactId}`,
-    );
-
+    console.log(`Action send-buttons: location=${payload.extras?.locationId}`);
     try {
-      const result = await workflowsService.executeSendPhoto(payload);
+      const result = await workflowsService.executeSendButtons(payload);
       res.json({ success: true, data: result });
     } catch (error) {
-      console.error(`Action send-photo failed: ${error.message}`);
+      console.error(`Action send-buttons failed: ${error.message}`);
       res.json({ success: false, error: error.message });
     }
   });
 
-  router.post('/actions/send-document', async (req, res) => {
+  router.post('/actions/forward-message', async (req, res) => {
     const payload = req.body;
-
-    console.log(
-      `Action send-document: location=${payload.extras?.locationId}, contact=${payload.extras?.contactId}`,
-    );
-
+    console.log(`Action forward-message: location=${payload.extras?.locationId}`);
     try {
-      const result = await workflowsService.executeSendDocument(payload);
+      const result = await workflowsService.executeForwardMessage(payload);
       res.json({ success: true, data: result });
     } catch (error) {
-      console.error(`Action send-document failed: ${error.message}`);
+      console.error(`Action forward-message failed: ${error.message}`);
+      res.json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/actions/edit-message', async (req, res) => {
+    const payload = req.body;
+    console.log(`Action edit-message: location=${payload.extras?.locationId}`);
+    try {
+      const result = await workflowsService.executeEditMessage(payload);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      console.error(`Action edit-message failed: ${error.message}`);
+      res.json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/actions/delete-message', async (req, res) => {
+    const payload = req.body;
+    console.log(`Action delete-message: location=${payload.extras?.locationId}`);
+    try {
+      const result = await workflowsService.executeDeleteMessage(payload);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      console.error(`Action delete-message failed: ${error.message}`);
+      res.json({ success: false, error: error.message });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // PHONE ACTIONS
+  // ═══════════════════════════════════════════════════════════
+
+  router.post('/actions/send-phone-message', async (req, res) => {
+    const payload = req.body;
+    console.log(`Action send-phone-message: location=${payload.extras?.locationId}`);
+    try {
+      const result = await workflowsService.executeSendPhoneMessage(payload);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      console.error(`Action send-phone-message failed: ${error.message}`);
+      res.json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/actions/send-to-group', async (req, res) => {
+    const payload = req.body;
+    console.log(`Action send-to-group: location=${payload.extras?.locationId}`);
+    try {
+      const result = await workflowsService.executeSendToGroup(payload);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      console.error(`Action send-to-group failed: ${error.message}`);
+      res.json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/actions/send-reaction', async (req, res) => {
+    const payload = req.body;
+    console.log(`Action send-reaction: location=${payload.extras?.locationId}`);
+    try {
+      const result = await workflowsService.executeSendReaction(payload);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      console.error(`Action send-reaction failed: ${error.message}`);
+      res.json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/actions/generate-invite-link', async (req, res) => {
+    const payload = req.body;
+    console.log(`Action generate-invite-link: location=${payload.extras?.locationId}`);
+    try {
+      const result = await workflowsService.executeGenerateInviteLink(payload);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      console.error(`Action generate-invite-link failed: ${error.message}`);
+      res.json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/actions/pin-message', async (req, res) => {
+    const payload = req.body;
+    console.log(`Action pin-message: location=${payload.extras?.locationId}`);
+    try {
+      const result = await workflowsService.executePinMessage(payload);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      console.error(`Action pin-message failed: ${error.message}`);
+      res.json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/actions/edit-group-permissions', async (req, res) => {
+    const payload = req.body;
+    console.log(`Action edit-group-permissions: location=${payload.extras?.locationId}`);
+    try {
+      const result = await workflowsService.executeEditGroupPermissions(payload);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      console.error(`Action edit-group-permissions failed: ${error.message}`);
       res.json({ success: false, error: error.message });
     }
   });

@@ -94,6 +94,53 @@ class TelegramService {
     return res.result.message_id;
   }
 
+  // ── Advanced Send Methods ─────────────────────────────────
+
+  async sendMessageWithButtons(botToken, chatId, text, inlineKeyboard) {
+    const res = await this._callTelegramApi(botToken, 'sendMessage', {
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: inlineKeyboard },
+    });
+    return res.result.message_id;
+  }
+
+  async forwardMessage(botToken, toChatId, fromChatId, messageId) {
+    const res = await this._callTelegramApi(botToken, 'forwardMessage', {
+      chat_id: toChatId,
+      from_chat_id: fromChatId,
+      message_id: messageId,
+    });
+    return res.result.message_id;
+  }
+
+  async editMessage(botToken, chatId, messageId, text) {
+    const res = await this._callTelegramApi(botToken, 'editMessageText', {
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      parse_mode: 'HTML',
+    });
+    return res.result.message_id;
+  }
+
+  async deleteMessage(botToken, chatId, messageId) {
+    await this._callTelegramApi(botToken, 'deleteMessage', {
+      chat_id: chatId,
+      message_id: messageId,
+    });
+    return true;
+  }
+
+  async pinMessage(botToken, chatId, messageId) {
+    await this._callTelegramApi(botToken, 'pinChatMessage', {
+      chat_id: chatId,
+      message_id: messageId,
+    });
+    return true;
+  }
+
   // ── File Downloads ─────────────────────────────────────────
 
   async getFileUrl(botToken, fileId) {

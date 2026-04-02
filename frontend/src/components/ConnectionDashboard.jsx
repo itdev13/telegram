@@ -89,21 +89,18 @@ export default function ConnectionDashboard({
       )}
 
       {/* How it works */}
-      <div className="mt-6 pt-6 border-t border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">How it works</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="mt-6 pt-6 border-t border-gray-100">
+        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">How it works</h3>
+        <div className="flex items-start gap-3">
           {[
-            { icon: '1', title: 'Customer messages', desc: 'Via bot or your Telegram account' },
-            { icon: '2', title: 'TeleSync syncs', desc: 'Message appears in GHL Conversations' },
-            { icon: '3', title: 'Agent replies', desc: 'Your team responds from GHL' },
-            { icon: '4', title: 'Customer gets reply', desc: 'Sent back to Telegram instantly' },
-          ].map((item) => (
-            <div key={item.icon} className="text-center p-3">
-              <div className="w-8 h-8 rounded-full bg-telegram/10 text-telegram text-sm font-bold flex items-center justify-center mx-auto mb-2">
-                {item.icon}
-              </div>
-              <div className="text-xs font-medium text-gray-900">{item.title}</div>
-              <div className="text-xs text-gray-500 mt-0.5">{item.desc}</div>
+            { emoji: '💬', label: 'Customer sends a message on Telegram' },
+            { emoji: '⚡', label: 'TeleSync syncs it to your GHL inbox' },
+            { emoji: '👤', label: 'Your team replies from GHL' },
+            { emoji: '✅', label: 'Customer gets the reply on Telegram' },
+          ].map((item, i) => (
+            <div key={i} className="flex-1 flex flex-col items-center text-center">
+              <div className="text-2xl mb-2">{item.emoji}</div>
+              <div className="text-xs text-gray-600 leading-snug">{item.label}</div>
             </div>
           ))}
         </div>

@@ -105,40 +105,65 @@ function createWebhooksRouter(
       );
 
       // Step 9: Fire workflow triggers (fire-and-forget)
-      console.log(`[Workflows] workflowsService available: ${!!workflowsService}`);
-      console.log(`[Workflows] isNewContact: ${isNewContact}`);
-
       if (workflowsService) {
+        const messageType = message.text ? 'text' : message.photo ? 'photo' : message.document ? 'document' : 'other';
         const triggerPayload = {
           contactId: ghlContactId,
           telegramChatId: chatId,
           telegramUsername: telegramUser.username || '',
           telegramFirstName: telegramUser.first_name,
           messageText: messageText,
-          messageType: message.text
-            ? 'text'
-            : message.photo
-              ? 'photo'
-              : message.document
-                ? 'document'
-                : 'other',
+          messageType,
           telegramMessageId: message.message_id,
           timestamp: new Date().toISOString(),
         };
 
-        console.log(`[Workflows] Firing telegram_message_received for location ${locationId}`);
-        workflowsService
-          .fireTrigger('telegram_message_received', locationId, triggerPayload)
-          .catch((err) => console.error(`[Workflows] Failed to fire message trigger: ${err.message}`));
+        // Always: message received
+        workflowsService.fireTrigger('telegram_message_received', locationId, triggerPayload)
+          .catch((err) => console.error(`[Workflows] message trigger: ${err.message}`));
 
+        // New contact
         if (isNewContact) {
-          console.log(`[Workflows] Firing new_telegram_contact for location ${locationId}`);
-          workflowsService
-            .fireTrigger('new_telegram_contact', locationId, triggerPayload)
-            .catch((err) => console.error(`[Workflows] Failed to fire new contact trigger: ${err.message}`));
+          workflowsService.fireTrigger('new_telegram_contact', locationId, triggerPayload)
+            .catch((err) => console.error(`[Workflows] new contact trigger: ${err.message}`));
         }
-      } else {
-        console.warn('[Workflows] workflowsService is NOT available - triggers will not fire');
+
+        // Bot command (message starts with /)
+        if (messageText && messageText.startsWith('/')) {
+          const command = messageText.split(' ')[0].split('@')[0]; // /start@botname → /start
+          workflowsService.fireTrigger('telegram_bot_command', locationId, { ...triggerPayload, command })
+            .catch((err) => console.error(`[Workflows] bot command trigger: ${err.message}`));
+        }
+
+        // Media received (photo or document)
+        if (messageType === 'photo' || messageType === 'document') {
+          const mediaPayload = {
+            ...triggerPayload,
+            mediaType: messageType,
+            mediaUrl: attachments.length > 0 ? attachments[0] : '',
+          };
+          workflowsService.fireTrigger('telegram_media_received', locationId, mediaPayload)
+            .catch((err) => console.error(`[Workflows] media trigger: ${err.message}`));
+        }
+
+        // Contact reactivated (no message from this chat in last 7 days)
+        try {
+          const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+          const recentMessage = await MessageLog.findOne({
+            locationId,
+            telegramChatId: chatId,
+            direction: MessageDirection.INBOUND,
+            createdAt: { $gte: sevenDaysAgo },
+            _id: { $ne: result.messageId }, // exclude current message
+          }).lean();
+
+          if (!recentMessage && !isNewContact) {
+            workflowsService.fireTrigger('telegram_contact_reactivated', locationId, triggerPayload)
+              .catch((err) => console.error(`[Workflows] reactivated trigger: ${err.message}`));
+          }
+        } catch (err) {
+          // Don't block on reactivation check failure
+        }
       }
 
       res.json({ ok: true });
@@ -324,6 +349,18 @@ function createWebhooksRouter(
         status: MessageStatus.FAILED,
         errorMessage: error.message || 'Unknown error',
       });
+
+      // Fire message_failed trigger
+      if (workflowsService) {
+        workflowsService.fireTrigger('telegram_message_failed', locationId, {
+          contactId,
+          locationId,
+          messageId,
+          errorMessage: error.message || 'Unknown error',
+          messageText: message || '',
+          timestamp: new Date().toISOString(),
+        }).catch(() => {});
+      }
 
       res.json({ ok: false });
     }
