@@ -126,23 +126,69 @@ export default function App() {
 
       {/* How it works - shown when no setup type selected */}
       {!setupType && (
-        <div className="mt-8 px-1">
-          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">How it works</h3>
-          <div className="flex items-start gap-3">
-            {[
-              { emoji: '💬', label: 'Customer sends a message on Telegram' },
-              { emoji: '⚡', label: 'TeleSync syncs it to your GHL inbox' },
-              { emoji: '👤', label: 'Your team replies from GHL' },
-              { emoji: '✅', label: 'Customer gets the reply on Telegram' },
-            ].map((item, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center text-center">
-                <div className="text-2xl mb-2">{item.emoji}</div>
-                <div className="text-xs text-gray-600 leading-snug">{item.label}</div>
-                {i < 3 && (
-                  <div className="hidden sm:block absolute translate-x-[100%] top-3 text-gray-300">›</div>
-                )}
+        <div className="mt-8 space-y-6">
+          {/* Messaging flow */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Two-Way Messaging</h3>
+            <div className="flex items-start gap-3">
+              {[
+                { emoji: '💬', label: 'Customer sends a message on Telegram' },
+                { emoji: '⚡', label: 'TeleSync syncs it to your GHL inbox' },
+                { emoji: '👤', label: 'Your team replies from GHL' },
+                { emoji: '✅', label: 'Customer gets the reply on Telegram' },
+              ].map((item, i) => (
+                <div key={i} className="flex-1 flex flex-col items-center text-center">
+                  <div className="text-2xl mb-2">{item.emoji}</div>
+                  <div className="text-xs text-gray-600 leading-snug">{item.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Workflow automations */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Workflow Automations</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Build powerful automations with Telegram triggers and actions inside GHL workflows.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-xs font-semibold text-gray-900 mb-2">Triggers</div>
+                <div className="space-y-1.5">
+                  {[
+                    'New message received',
+                    'New subscriber',
+                    'Bot command (/start, /help)',
+                    'Media received (photo, file)',
+                    'Contact replied after silence',
+                    'Message delivery failed',
+                  ].map((t, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
+                      {t}
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
+              <div>
+                <div className="text-xs font-semibold text-gray-900 mb-2">Actions</div>
+                <div className="space-y-1.5">
+                  {[
+                    'Send message, photo, or file',
+                    'Send message with buttons',
+                    'Send via phone account',
+                    'Send to groups',
+                    'React, pin, edit, delete',
+                    'Generate invite links',
+                  ].map((a, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
+                      <span className="w-1.5 h-1.5 rounded-full bg-telegram shrink-0" />
+                      {a}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

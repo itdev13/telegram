@@ -88,21 +88,16 @@ export default function ConnectionDashboard({
         </div>
       )}
 
-      {/* How it works */}
+      {/* Workflow automations hint */}
       <div className="mt-6 pt-6 border-t border-gray-100">
-        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">How it works</h3>
-        <div className="flex items-start gap-3">
-          {[
-            { emoji: '💬', label: 'Customer sends a message on Telegram' },
-            { emoji: '⚡', label: 'TeleSync syncs it to your GHL inbox' },
-            { emoji: '👤', label: 'Your team replies from GHL' },
-            { emoji: '✅', label: 'Customer gets the reply on Telegram' },
-          ].map((item, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center text-center">
-              <div className="text-2xl mb-2">{item.emoji}</div>
-              <div className="text-xs text-gray-600 leading-snug">{item.label}</div>
-            </div>
-          ))}
+        <div className="flex items-start gap-3 p-4 bg-gradient-to-r from-sky-50 to-white rounded-xl border border-sky-100">
+          <div className="text-2xl">⚡</div>
+          <div>
+            <div className="text-sm font-semibold text-gray-900 mb-1">Workflow Automations Available</div>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Use <strong>6 triggers</strong> and <strong>11 actions</strong> in your GHL workflows — auto-reply to messages, send to groups, react with emojis, and more.
+            </p>
+          </div>
         </div>
       </div>
     </div>
