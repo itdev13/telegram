@@ -141,6 +141,41 @@ class TelegramService {
     return true;
   }
 
+  async sendReaction(botToken, chatId, messageId, emoji) {
+    await this._callTelegramApi(botToken, 'setMessageReaction', {
+      chat_id: chatId,
+      message_id: messageId,
+      reaction: [{ type: 'emoji', emoji }],
+    });
+    return true;
+  }
+
+  async generateInviteLink(botToken, chatId) {
+    const res = await this._callTelegramApi(botToken, 'exportChatInviteLink', {
+      chat_id: chatId,
+    });
+    return res.result;
+  }
+
+  async setChatPermissions(botToken, chatId, permissions) {
+    await this._callTelegramApi(botToken, 'setChatPermissions', {
+      chat_id: chatId,
+      permissions: {
+        can_send_messages: permissions.sendMessages ?? true,
+        can_send_photos: permissions.sendMedia ?? true,
+        can_send_videos: permissions.sendMedia ?? true,
+        can_send_documents: permissions.sendMedia ?? true,
+        can_send_other_messages: permissions.sendStickers ?? true,
+        can_add_web_page_previews: permissions.embedLinks ?? true,
+        can_send_polls: permissions.sendPolls ?? true,
+        can_change_info: permissions.changeInfo ?? false,
+        can_invite_users: permissions.inviteUsers ?? true,
+        can_pin_messages: permissions.pinMessages ?? true,
+      },
+    });
+    return true;
+  }
+
   // ── File Downloads ─────────────────────────────────────────
 
   async getFileUrl(botToken, fileId) {

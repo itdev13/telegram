@@ -142,39 +142,31 @@ class WorkflowsService {
   // ACTION EXECUTION
   // ═══════════════════════════════════════════════════════════
 
+  // ═══════════════════════════════════════════════════════════
+  // ALL ACTIONS (transport-agnostic: uses bot or phone, whichever is available)
+  // ═══════════════════════════════════════════════════════════
+
   async executeSendMessage(payload) {
     const { locationId, contactId } = payload.extras;
     const { message, photoUrl, documentUrl, caption } = payload.data;
+    if (!message && !photoUrl && !documentUrl) throw new Error('At least one of message, photoUrl, or documentUrl is required');
 
-    if (!message && !photoUrl && !documentUrl) {
-      throw new Error('At least one of message, photoUrl, or documentUrl is required');
-    }
-
-    const { botToken, chatId } = await this._resolveContact(locationId, contactId);
+    const { chatId, transport, botToken } = await this._resolve(locationId, contactId);
     let messageId;
 
-    // Send text message
-    if (message) {
-      messageId = await this.telegram.sendMessage(botToken, chatId, message);
+    if (transport === 'phone') {
+      if (message) messageId = await this.connectionManager.sendMessage(locationId, chatId, message);
+      if (photoUrl) messageId = await this.connectionManager.sendPhoto(locationId, chatId, photoUrl, caption);
+      if (documentUrl) messageId = await this.connectionManager.sendDocument(locationId, chatId, documentUrl, caption);
+    } else {
+      if (message) messageId = await this.telegram.sendMessage(botToken, chatId, message);
+      if (photoUrl) messageId = await this.telegram.sendPhoto(botToken, chatId, photoUrl, caption || undefined);
+      if (documentUrl) messageId = await this.telegram.sendDocument(botToken, chatId, documentUrl, caption || undefined);
     }
 
-    // Send photo
-    if (photoUrl) {
-      messageId = await this.telegram.sendPhoto(botToken, chatId, photoUrl, caption || undefined);
-    }
-
-    // Send document
-    if (documentUrl) {
-      messageId = await this.telegram.sendDocument(botToken, chatId, documentUrl, caption || undefined);
-    }
-
-    console.log(`Workflow action: sent to chat ${chatId}, messageId=${messageId}`);
+    console.log(`Workflow action [${transport}]: sent to chat ${chatId}, messageId=${messageId}`);
     return { messageId, status: 'sent', telegramChatId: chatId };
   }
-
-  // ═══════════════════════════════════════════════════════════
-  // BOT ACTIONS (Advanced)
-  // ═══════════════════════════════════════════════════════════
 
   async executeSendButtons(payload) {
     const { locationId, contactId } = payload.extras;
@@ -182,9 +174,9 @@ class WorkflowsService {
     if (!message) throw new Error('Message text is required');
     if (!buttons || !Array.isArray(buttons)) throw new Error('Buttons array is required');
 
-    const { botToken, chatId } = await this._resolveContact(locationId, contactId);
+    const { chatId, botToken } = await this._resolve(locationId, contactId);
+    if (!botToken) throw new Error('Send Buttons requires a bot connection.');
 
-    // Build inline keyboard: each button is { text, url? } or { text, callback_data? }
     const inlineKeyboard = buttons.map((row) => {
       const rowButtons = Array.isArray(row) ? row : [row];
       return rowButtons.map((btn) => ({
@@ -203,9 +195,16 @@ class WorkflowsService {
     const { fromChatId, messageId: srcMessageId } = payload.data;
     if (!fromChatId || !srcMessageId) throw new Error('fromChatId and messageId are required');
 
-    const { botToken, chatId } = await this._resolveContact(locationId, contactId);
-    const messageId = await this.telegram.forwardMessage(botToken, chatId, fromChatId, srcMessageId);
-    console.log(`Workflow action: forwarded message to chat ${chatId}`);
+    const { chatId, transport, botToken } = await this._resolve(locationId, contactId);
+    let messageId;
+
+    if (transport === 'phone') {
+      messageId = await this.connectionManager.forwardMessage(locationId, Number(fromChatId), chatId, Number(srcMessageId));
+    } else {
+      messageId = await this.telegram.forwardMessage(botToken, chatId, fromChatId, srcMessageId);
+    }
+
+    console.log(`Workflow action [${transport}]: forwarded message to chat ${chatId}`);
     return { messageId, status: 'sent', telegramChatId: chatId };
   }
 
@@ -214,10 +213,16 @@ class WorkflowsService {
     const { messageId: targetMessageId, message } = payload.data;
     if (!targetMessageId || !message) throw new Error('messageId and message are required');
 
-    const { botToken, chatId } = await this._resolveContact(locationId, contactId);
-    const messageId = await this.telegram.editMessage(botToken, chatId, targetMessageId, message);
-    console.log(`Workflow action: edited message ${targetMessageId} in chat ${chatId}`);
-    return { messageId, status: 'edited', telegramChatId: chatId };
+    const { chatId, transport, botToken } = await this._resolve(locationId, contactId);
+
+    if (transport === 'phone') {
+      await this.connectionManager.editMessage(locationId, chatId, Number(targetMessageId), message);
+    } else {
+      await this.telegram.editMessage(botToken, chatId, targetMessageId, message);
+    }
+
+    console.log(`Workflow action [${transport}]: edited message ${targetMessageId} in chat ${chatId}`);
+    return { messageId: targetMessageId, status: 'edited', telegramChatId: chatId };
   }
 
   async executeDeleteMessage(payload) {
@@ -225,25 +230,33 @@ class WorkflowsService {
     const { messageId: targetMessageId } = payload.data;
     if (!targetMessageId) throw new Error('messageId is required');
 
-    const { botToken, chatId } = await this._resolveContact(locationId, contactId);
-    await this.telegram.deleteMessage(botToken, chatId, targetMessageId);
-    console.log(`Workflow action: deleted message ${targetMessageId} in chat ${chatId}`);
+    const { chatId, transport, botToken } = await this._resolve(locationId, contactId);
+
+    if (transport === 'phone') {
+      await this.connectionManager.deleteMessage(locationId, chatId, Number(targetMessageId));
+    } else {
+      await this.telegram.deleteMessage(botToken, chatId, targetMessageId);
+    }
+
+    console.log(`Workflow action [${transport}]: deleted message ${targetMessageId} in chat ${chatId}`);
     return { status: 'deleted', telegramChatId: chatId };
   }
-
-  // ═══════════════════════════════════════════════════════════
-  // PHONE ACTIONS (GramJS)
-  // ═══════════════════════════════════════════════════════════
 
   async executeSendPhoneMessage(payload) {
     const { locationId, contactId } = payload.extras;
     const { message } = payload.data;
     if (!message) throw new Error('Message text is required');
 
-    const chatId = await this._resolvePhoneChatId(locationId, contactId);
-    this._requirePhone(locationId);
-    const messageId = await this.connectionManager.sendMessage(locationId, chatId, message);
-    console.log(`Workflow action: sent phone message to chat ${chatId}, messageId=${messageId}`);
+    const { chatId, transport, botToken } = await this._resolve(locationId, contactId);
+    let messageId;
+
+    if (transport === 'phone') {
+      messageId = await this.connectionManager.sendMessage(locationId, chatId, message);
+    } else {
+      messageId = await this.telegram.sendMessage(botToken, chatId, message);
+    }
+
+    console.log(`Workflow action [${transport}]: sent message to chat ${chatId}, messageId=${messageId}`);
     return { messageId, status: 'sent', telegramChatId: chatId };
   }
 
@@ -253,20 +266,18 @@ class WorkflowsService {
     if (!groupId) throw new Error('groupId is required');
     if (!message && !fileUrl) throw new Error('At least one of message or fileUrl is required');
 
-    this._requirePhone(locationId);
+    const { transport, botToken } = await this._resolveTransport(locationId);
     let messageId;
 
-    // Send text message to group
-    if (message) {
-      messageId = await this.connectionManager.sendToGroup(locationId, Number(groupId), message);
+    if (transport === 'phone') {
+      if (message) messageId = await this.connectionManager.sendToGroup(locationId, Number(groupId), message);
+      if (fileUrl) messageId = await this.connectionManager.sendFileToGroup(locationId, Number(groupId), fileUrl, caption || '');
+    } else {
+      if (message) messageId = await this.telegram.sendMessage(botToken, Number(groupId), message);
+      if (fileUrl) messageId = await this.telegram.sendDocument(botToken, Number(groupId), fileUrl, caption || undefined);
     }
 
-    // Send file to group
-    if (fileUrl) {
-      messageId = await this.connectionManager.sendFileToGroup(locationId, Number(groupId), fileUrl, caption || '');
-    }
-
-    console.log(`Workflow action: sent to group ${groupId}, messageId=${messageId}`);
+    console.log(`Workflow action [${transport}]: sent to group ${groupId}, messageId=${messageId}`);
     return { messageId, status: 'sent', groupId };
   }
 
@@ -275,10 +286,15 @@ class WorkflowsService {
     const { messageId: targetMessageId, emoji } = payload.data;
     if (!targetMessageId || !emoji) throw new Error('messageId and emoji are required');
 
-    const chatId = await this._resolvePhoneChatId(locationId, contactId);
-    this._requirePhone(locationId);
-    await this.connectionManager.sendReaction(locationId, chatId, Number(targetMessageId), emoji);
-    console.log(`Workflow action: reacted ${emoji} to message ${targetMessageId}`);
+    const { chatId, transport, botToken } = await this._resolve(locationId, contactId);
+
+    if (transport === 'phone') {
+      await this.connectionManager.sendReaction(locationId, chatId, Number(targetMessageId), emoji);
+    } else {
+      await this.telegram.sendReaction(botToken, chatId, targetMessageId, emoji);
+    }
+
+    console.log(`Workflow action [${transport}]: reacted ${emoji} to message ${targetMessageId}`);
     return { status: 'reacted', emoji, telegramChatId: chatId };
   }
 
@@ -287,9 +303,16 @@ class WorkflowsService {
     const { groupId } = payload.data;
     if (!groupId) throw new Error('groupId is required');
 
-    this._requirePhone(locationId);
-    const inviteLink = await this.connectionManager.generateInviteLink(locationId, Number(groupId));
-    console.log(`Workflow action: generated invite link for group ${groupId}`);
+    const { transport, botToken } = await this._resolveTransport(locationId);
+    let inviteLink;
+
+    if (transport === 'phone') {
+      inviteLink = await this.connectionManager.generateInviteLink(locationId, Number(groupId));
+    } else {
+      inviteLink = await this.telegram.generateInviteLink(botToken, Number(groupId));
+    }
+
+    console.log(`Workflow action [${transport}]: generated invite link for group ${groupId}`);
     return { inviteLink, status: 'generated', groupId };
   }
 
@@ -298,10 +321,15 @@ class WorkflowsService {
     const { messageId: targetMessageId } = payload.data;
     if (!targetMessageId) throw new Error('messageId is required');
 
-    const chatId = await this._resolvePhoneChatId(locationId, contactId);
-    this._requirePhone(locationId);
-    await this.connectionManager.pinMessage(locationId, chatId, Number(targetMessageId));
-    console.log(`Workflow action: pinned message ${targetMessageId} in chat ${chatId}`);
+    const { chatId, transport, botToken } = await this._resolve(locationId, contactId);
+
+    if (transport === 'phone') {
+      await this.connectionManager.pinMessage(locationId, chatId, Number(targetMessageId));
+    } else {
+      await this.telegram.pinMessage(botToken, chatId, targetMessageId);
+    }
+
+    console.log(`Workflow action [${transport}]: pinned message ${targetMessageId} in chat ${chatId}`);
     return { status: 'pinned', telegramChatId: chatId };
   }
 
@@ -310,9 +338,15 @@ class WorkflowsService {
     const { groupId, permissions } = payload.data;
     if (!groupId || !permissions) throw new Error('groupId and permissions are required');
 
-    this._requirePhone(locationId);
-    await this.connectionManager.editGroupPermissions(locationId, Number(groupId), permissions);
-    console.log(`Workflow action: edited group permissions for ${groupId}`);
+    const { transport, botToken } = await this._resolveTransport(locationId);
+
+    if (transport === 'phone') {
+      await this.connectionManager.editGroupPermissions(locationId, Number(groupId), permissions);
+    } else {
+      await this.telegram.setChatPermissions(botToken, Number(groupId), permissions);
+    }
+
+    console.log(`Workflow action [${transport}]: edited group permissions for ${groupId}`);
     return { status: 'updated', groupId };
   }
 
@@ -320,26 +354,43 @@ class WorkflowsService {
   // HELPERS
   // ═══════════════════════════════════════════════════════════
 
-  async _resolveContact(locationId, contactId) {
-    const chatId = await this.contactMapping.getTelegramChatId(locationId, contactId);
-    if (!chatId) throw new Error('Contact has no Telegram mapping. The user must message the bot first.');
+  // Resolve contact chatId + pick transport based on how the contact was created
+  async _resolve(locationId, contactId) {
+    const mapping = await this.contactMapping.getContactMapping(locationId, contactId);
+    if (!mapping) throw new Error('Contact has no Telegram mapping. The user must message first.');
 
+    const chatId = mapping.telegramChatId;
+    const contactSource = mapping.source || 'bot'; // 'bot' or 'phone'
+
+    const hasPhone = this.connectionManager?.isConnected?.(locationId);
     const botToken = await this.settings.getBotToken(locationId);
-    if (!botToken) throw new Error('No Telegram bot configured for this location.');
 
-    return { botToken, chatId };
-  }
+    if (!hasPhone && !botToken) throw new Error('No Telegram connection configured. Connect a bot or phone in TeleSync settings.');
 
-  async _resolvePhoneChatId(locationId, contactId) {
-    const chatId = await this.contactMapping.getTelegramChatId(locationId, contactId);
-    if (!chatId) throw new Error('Contact has no Telegram mapping. The user must message first.');
-    return chatId;
-  }
-
-  _requirePhone(locationId) {
-    if (!this.connectionManager?.isConnected?.(locationId)) {
-      throw new Error('No active phone connection for this location.');
+    // Use the transport that created this contact, fallback to whatever is available
+    let transport;
+    if (contactSource === 'phone' && hasPhone) {
+      transport = 'phone';
+    } else if (contactSource === 'bot' && botToken) {
+      transport = 'bot';
+    } else {
+      // Fallback: use whatever is connected
+      transport = hasPhone ? 'phone' : 'bot';
     }
+
+    console.log(`[Workflows] Contact ${contactId} source=${contactSource}, using transport=${transport}`);
+    return { chatId, transport, botToken };
+  }
+
+  // Resolve transport only (for group actions without contactId)
+  async _resolveTransport(locationId) {
+    const hasPhone = this.connectionManager?.isConnected?.(locationId);
+    const botToken = await this.settings.getBotToken(locationId);
+
+    if (!hasPhone && !botToken) throw new Error('No Telegram connection configured. Connect a bot or phone in TeleSync settings.');
+
+    const transport = hasPhone ? 'phone' : 'bot';
+    return { transport, botToken };
   }
 }
 
