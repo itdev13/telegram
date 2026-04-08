@@ -14,6 +14,7 @@ function createWebhooksRouter(
   contactMappingService,
   connectionManager,
   workflowsService,
+  billingService,
 ) {
   const router = Router();
 
@@ -103,6 +104,21 @@ function createWebhooksRouter(
       console.log(
         `Inbound message synced: Telegram chat ${chatId} → GHL message ${result.messageId}`,
       );
+
+      // Step 8.5: Charge for inbound message (fire-and-forget)
+      if (billingService) {
+        billingService
+          .chargeForAction({
+            locationId,
+            companyId: installation.companyId,
+            actionType: 'telegram_inbound',
+          })
+          .then((r) => {
+            if (r.success) console.log(`[Billing] Inbound charge OK: ${r.chargeId}`);
+            else console.warn(`[Billing] Inbound charge failed: ${r.error}`);
+          })
+          .catch((err) => console.error(`[Billing] Inbound charge error: ${err.message}`));
+      }
 
       // Step 9: Fire workflow triggers (fire-and-forget)
       if (workflowsService) {
@@ -324,6 +340,21 @@ function createWebhooksRouter(
       console.log(
         `Outbound message synced: GHL message ${messageId} → Telegram chat ${telegramChatId}`,
       );
+
+      // Step 6: Charge for outbound message (fire-and-forget)
+      if (billingService && installation) {
+        billingService
+          .chargeForAction({
+            locationId,
+            companyId: installation.companyId,
+            actionType: 'telegram_outbound',
+          })
+          .then((r) => {
+            if (r.success) console.log(`[Billing] Outbound charge OK: ${r.chargeId}`);
+            else console.warn(`[Billing] Outbound charge failed: ${r.error}`);
+          })
+          .catch((err) => console.error(`[Billing] Outbound charge error: ${err.message}`));
+      }
 
       res.json({ ok: true });
     } catch (error) {

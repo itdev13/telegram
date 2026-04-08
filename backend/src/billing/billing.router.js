@@ -30,7 +30,7 @@ function createBillingRouter(billingService, authService) {
     }
   });
 
-  // GET /billing/config
+  // GET /billing/config — meter prices from GHL
   router.get('/config', async (req, res) => {
     try {
       const { locationId } = req.query;
@@ -40,6 +40,11 @@ function createBillingRouter(billingService, authService) {
     } catch (error) {
       res.status(error.statusCode || 500).json({ error: error.message });
     }
+  });
+
+  // GET /billing/pricing — current pricing and meter IDs
+  router.get('/pricing', (req, res) => {
+    res.json({ success: true, data: billingService.getPricingConfig() });
   });
 
   return router;

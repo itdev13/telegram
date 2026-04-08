@@ -93,12 +93,13 @@ async function bootstrap() {
       contactMappingService,
       connectionManager,
       workflowsService,
+      billingService,
     ),
   );
   app.use('/billing', createBillingRouter(billingService, authService));
   app.use('/referrals', createReferralRouter(referralService));
   app.use('/media', createMediaRouter());
-  app.use('/workflows', createWorkflowsRouter(workflowsService));
+  app.use('/workflows', createWorkflowsRouter(workflowsService, billingService));
 
   // Clean up expired media files on startup and every 30 minutes
   cleanupExpiredMedia();
