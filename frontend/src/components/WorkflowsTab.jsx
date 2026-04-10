@@ -1,24 +1,24 @@
 const TRIGGERS = [
-  { name: 'New Message Received', summary: 'Fires when a contact messages your bot.', icon: '💬', color: 'bg-blue-50' },
-  { name: 'New Subscriber', summary: 'First-time contact messages your bot.', icon: '👤', color: 'bg-purple-50' },
-  { name: 'Bot Started (/start)', summary: 'New user starts your Telegram bot.', icon: '🤖', color: 'bg-red-50' },
-  { name: 'Media Received', summary: 'Photo, video, or document sent to bot.', icon: '📎', color: 'bg-amber-50' },
+  { name: 'New Message Received', summary: 'Any message from bot or phone contact.', icon: '💬', color: 'bg-blue-50' },
+  { name: 'New Subscriber', summary: 'First-time contact on bot or phone.', icon: '👤', color: 'bg-purple-50' },
+  { name: 'Bot Command', summary: 'User sends /start, /help, or custom commands.', icon: '🤖', color: 'bg-red-50' },
+  { name: 'Media Received', summary: 'Photo, video, or document via bot or phone.', icon: '📎', color: 'bg-amber-50' },
   { name: 'Contact Reactivated', summary: 'Contact replies after 7+ days of silence.', icon: '🔄', color: 'bg-green-50' },
-  { name: 'Message Failed', summary: 'Outbound message fails to deliver.', icon: '⚠️', color: 'bg-red-50' },
+  { name: 'Message Failed', summary: 'Outbound message could not be delivered.', icon: '⚠️', color: 'bg-red-50' },
 ];
 
 const ACTIONS = [
-  { name: 'Send Telegram Message', summary: 'Auto-reply from GHL workflows.', icon: '📤', color: 'bg-blue-50', price: '$0.02' },
-  { name: 'Send with Buttons', summary: 'Message with inline keyboard buttons.', icon: '🔘', color: 'bg-indigo-50', price: '$0.02' },
-  { name: 'Send via Phone', summary: 'Send using your phone number.', icon: '📱', color: 'bg-teal-50', price: '$0.02' },
-  { name: 'Send to Group', summary: 'Broadcast to Telegram groups.', icon: '👥', color: 'bg-sky-50', price: '$0.02' },
-  { name: 'React with Emoji', summary: 'Add emoji reactions to messages.', icon: '😀', color: 'bg-amber-50', price: '$0.01' },
+  { name: 'Send Message', summary: 'Send text to a contact via bot.', icon: '📤', color: 'bg-blue-50', price: '$0.02' },
+  { name: 'Send with Buttons', summary: 'Send message with inline keyboard buttons.', icon: '🔘', color: 'bg-indigo-50', price: '$0.02' },
+  { name: 'Send via Phone', summary: 'Send message using your phone account.', icon: '📱', color: 'bg-teal-50', price: '$0.02' },
+  { name: 'Send to Group', summary: 'Send text or file to a Telegram group.', icon: '👥', color: 'bg-sky-50', price: '$0.02' },
+  { name: 'React with Emoji', summary: 'Add emoji reaction to any message.', icon: '😀', color: 'bg-amber-50', price: '$0.01' },
   { name: 'Forward Message', summary: 'Forward a message to another chat.', icon: '↗️', color: 'bg-gray-50', price: 'Free' },
   { name: 'Pin Message', summary: 'Pin a message in a chat or group.', icon: '📌', color: 'bg-orange-50', price: 'Free' },
-  { name: 'Edit Message', summary: 'Edit a previously sent message.', icon: '✏️', color: 'bg-yellow-50', price: 'Free' },
-  { name: 'Delete Message', summary: 'Delete a message from a chat.', icon: '🗑️', color: 'bg-red-50', price: 'Free' },
+  { name: 'Edit Message', summary: 'Edit a previously sent bot message.', icon: '✏️', color: 'bg-yellow-50', price: 'Free' },
+  { name: 'Delete Message', summary: 'Delete a message from any chat.', icon: '🗑️', color: 'bg-red-50', price: 'Free' },
   { name: 'Generate Invite Link', summary: 'Create invite link for group or channel.', icon: '🔗', color: 'bg-violet-50', price: '$0.02' },
-  { name: 'Edit Group Permissions', summary: 'Update default group permissions.', icon: '🛡️', color: 'bg-emerald-50', price: '$0.03' },
+  { name: 'Edit Group Permissions', summary: 'Update default permissions for a group.', icon: '🛡️', color: 'bg-emerald-50', price: '$0.03' },
 ];
 
 export default function WorkflowsTab() {
@@ -38,7 +38,7 @@ export default function WorkflowsTab() {
                 <div className="text-xs text-gray-400">{t.summary}</div>
               </div>
               <span className="shrink-0 px-3 py-1 rounded-full text-xs font-bold text-green-600 bg-green-50 border border-green-200">
-                ON
+                TRIGGER
               </span>
             </div>
           ))}
