@@ -9,7 +9,7 @@ import { PlusIcon, TelegramIcon, PhoneIcon } from './Icons';
 
 const TABS = [
   { id: 'connections', label: 'Connections' },
-  { id: 'workflows', label: 'Triggers & Actions' },
+  { id: 'workflows', label: 'Automations' },
   { id: 'pricing', label: 'Pricing' },
 ];
 

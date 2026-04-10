@@ -1,44 +1,45 @@
 const TRIGGERS = [
-  { name: 'New Message Received', summary: 'Runs when any Telegram message arrives in your bot or phone account.' },
-  { name: 'New Subscriber', summary: 'Runs when a brand-new contact messages you for the first time.' },
-  { name: 'Bot Command', summary: 'Runs when a user sends /start, /help, or any custom command.' },
-  { name: 'Media Received', summary: 'Runs when a user sends a photo, document, or file.' },
-  { name: 'Contact Reactivated', summary: 'Runs when a contact replies after 7+ days of silence.' },
-  { name: 'Message Delivery Failed', summary: 'Runs when an outbound message fails to deliver.' },
+  { name: 'New Message Received', summary: 'Fires when a contact messages your bot.', icon: '💬', color: 'bg-blue-50' },
+  { name: 'New Subscriber', summary: 'First-time contact messages your bot.', icon: '👤', color: 'bg-purple-50' },
+  { name: 'Bot Started (/start)', summary: 'New user starts your Telegram bot.', icon: '🤖', color: 'bg-red-50' },
+  { name: 'Media Received', summary: 'Photo, video, or document sent to bot.', icon: '📎', color: 'bg-amber-50' },
+  { name: 'Contact Reactivated', summary: 'Contact replies after 7+ days of silence.', icon: '🔄', color: 'bg-green-50' },
+  { name: 'Message Failed', summary: 'Outbound message fails to deliver.', icon: '⚠️', color: 'bg-red-50' },
 ];
 
 const ACTIONS = [
-  { name: 'Send Message', summary: 'Send a text message to a contact via bot.', price: '$0.02' },
-  { name: 'Send Message with Buttons', summary: 'Send a message with inline keyboard buttons.', price: '$0.02' },
-  { name: 'Send via Phone', summary: 'Send using your connected phone number instead of the bot.', price: '$0.02' },
-  { name: 'Send to Group', summary: 'Send a text or file message to a Telegram group.', price: '$0.02' },
-  { name: 'Forward Message', summary: 'Forward a message to another chat.', price: 'Free' },
-  { name: 'React to Message', summary: 'Add an emoji reaction to a message.', price: '$0.01' },
-  { name: 'Pin Message', summary: 'Pin a message in a chat or group.', price: 'Free' },
-  { name: 'Edit Message', summary: 'Edit the text of a previously sent message.', price: 'Free' },
-  { name: 'Delete Message', summary: 'Delete a message from a chat.', price: 'Free' },
-  { name: 'Generate Invite Link', summary: 'Create a new invite link for a group or channel.', price: '$0.02' },
-  { name: 'Edit Group Permissions', summary: 'Update default group permissions (send messages, media, etc).', price: '$0.03' },
+  { name: 'Send Telegram Message', summary: 'Auto-reply from GHL workflows.', icon: '📤', color: 'bg-blue-50', price: '$0.02' },
+  { name: 'Send with Buttons', summary: 'Message with inline keyboard buttons.', icon: '🔘', color: 'bg-indigo-50', price: '$0.02' },
+  { name: 'Send via Phone', summary: 'Send using your phone number.', icon: '📱', color: 'bg-teal-50', price: '$0.02' },
+  { name: 'Send to Group', summary: 'Broadcast to Telegram groups.', icon: '👥', color: 'bg-sky-50', price: '$0.02' },
+  { name: 'React with Emoji', summary: 'Add emoji reactions to messages.', icon: '😀', color: 'bg-amber-50', price: '$0.01' },
+  { name: 'Forward Message', summary: 'Forward a message to another chat.', icon: '↗️', color: 'bg-gray-50', price: 'Free' },
+  { name: 'Pin Message', summary: 'Pin a message in a chat or group.', icon: '📌', color: 'bg-orange-50', price: 'Free' },
+  { name: 'Edit Message', summary: 'Edit a previously sent message.', icon: '✏️', color: 'bg-yellow-50', price: 'Free' },
+  { name: 'Delete Message', summary: 'Delete a message from a chat.', icon: '🗑️', color: 'bg-red-50', price: 'Free' },
+  { name: 'Generate Invite Link', summary: 'Create invite link for group or channel.', icon: '🔗', color: 'bg-violet-50', price: '$0.02' },
+  { name: 'Edit Group Permissions', summary: 'Update default group permissions.', icon: '🛡️', color: 'bg-emerald-50', price: '$0.03' },
 ];
 
 export default function WorkflowsTab() {
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Triggers */}
       <div>
-        <div className="flex items-center gap-2 mb-3">
-          <span className="w-2 h-2 rounded-full bg-green-400" />
-          <h3 className="text-sm font-semibold text-gray-900">Triggers</h3>
-          <span className="text-xs text-gray-400">({TRIGGERS.length})</span>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm divide-y divide-gray-100">
+        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Triggers</div>
+        <div className="space-y-2">
           {TRIGGERS.map((t) => (
-            <div key={t.name} className="flex items-center gap-3 px-5 py-3">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
-              <div className="min-w-0">
-                <div className="text-sm font-medium text-gray-900">{t.name}</div>
-                <div className="text-xs text-gray-500">{t.summary}</div>
+            <div key={t.name} className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
+              <div className={`w-10 h-10 rounded-xl ${t.color} flex items-center justify-center text-lg shrink-0`}>
+                {t.icon}
               </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-gray-900">{t.name}</div>
+                <div className="text-xs text-gray-400">{t.summary}</div>
+              </div>
+              <span className="shrink-0 px-3 py-1 rounded-full text-xs font-bold text-green-600 bg-green-50 border border-green-200">
+                ON
+              </span>
             </div>
           ))}
         </div>
@@ -46,22 +47,25 @@ export default function WorkflowsTab() {
 
       {/* Actions */}
       <div>
-        <div className="flex items-center gap-2 mb-3">
-          <span className="w-2 h-2 rounded-full bg-sky-400" />
-          <h3 className="text-sm font-semibold text-gray-900">Actions</h3>
-          <span className="text-xs text-gray-400">({ACTIONS.length})</span>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm divide-y divide-gray-100">
+        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Actions</div>
+        <div className="space-y-2">
           {ACTIONS.map((a) => (
-            <div key={a.name} className="flex items-center gap-3 px-5 py-3">
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-gray-900">{a.name}</div>
-                <div className="text-xs text-gray-500">{a.summary}</div>
+            <div key={a.name} className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
+              <div className={`w-10 h-10 rounded-xl ${a.color} flex items-center justify-center text-lg shrink-0`}>
+                {a.icon}
               </div>
-              <span className={`shrink-0 inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${a.price === 'Free' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
-                {a.price === 'Free' ? 'Free' : `${a.price}/exec`}
-              </span>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-gray-900">{a.name}</div>
+                <div className="text-xs text-gray-400">{a.summary}</div>
+              </div>
+              <div className="shrink-0 flex items-center gap-2">
+                {a.price !== 'Free' && (
+                  <span className="text-[10px] text-gray-400">{a.price}</span>
+                )}
+                <span className="px-3 py-1 rounded-full text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200">
+                  ACTION
+                </span>
+              </div>
             </div>
           ))}
         </div>
