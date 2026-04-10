@@ -13,6 +13,7 @@ const DEFAULT_PRICING = {
   edit_group_permissions: 0.03, // $0.03 per execution
   send_message_user: 0.02, // $0.02 per execution
   send_message_group: 0.02, // $0.02 per execution
+  send_reaction: 0.01, // $0.01 per execution
 };
 
 // Meter IDs per action type — placeholder until user creates them in GHL
@@ -24,6 +25,7 @@ const METER_IDS = {
   edit_group_permissions: process.env.METER_ID_EDIT_GROUP_PERMS || '',
   send_message_user: process.env.METER_ID_SEND_MSG_USER || '',
   send_message_group: process.env.METER_ID_SEND_MSG_GROUP || '',
+  send_reaction: process.env.METER_ID_SEND_REACTION || '',
 };
 
 class BillingService {

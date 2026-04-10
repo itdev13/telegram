@@ -164,6 +164,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
     console.log(`Action send-reaction: location=${payload.extras?.locationId}`);
     try {
       const result = await workflowsService.executeSendReaction(payload);
+      chargeAction('send_reaction', payload);
       res.json({ success: true, data: result });
     } catch (error) {
       console.error(`Action send-reaction failed: ${error.message}`);

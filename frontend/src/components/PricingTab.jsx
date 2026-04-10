@@ -16,12 +16,12 @@ const PRICING_DATA = [
       { action: 'Send file to group', price: 0.02, unit: 'per execution' },
       { action: 'Generate invite link', price: 0.02, unit: 'per execution' },
       { action: 'Edit group permissions', price: 0.03, unit: 'per execution' },
+      { action: 'React to message', price: 0.01, unit: 'per execution' },
     ],
   },
   {
     category: 'Free Actions',
     items: [
-      { action: 'React to message', price: 0, unit: 'free' },
       { action: 'Pin message', price: 0, unit: 'free' },
       { action: 'Edit message', price: 0, unit: 'free' },
       { action: 'Delete message', price: 0, unit: 'free' },
