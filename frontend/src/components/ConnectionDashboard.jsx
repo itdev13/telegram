@@ -5,12 +5,14 @@ import BotSetupCard from './BotSetupCard';
 import PhoneSetupCard from './PhoneSetupCard';
 import WorkflowsTab from './WorkflowsTab';
 import PricingTab from './PricingTab';
+import SupportTab from './SupportTab';
 import { PlusIcon, TelegramIcon, PhoneIcon } from './Icons';
 
 const TABS = [
   { id: 'connections', label: 'Connections' },
   { id: 'workflows', label: 'Automations' },
   { id: 'pricing', label: 'Pricing' },
+  { id: 'support', label: '🆘 Support' },
 ];
 
 export default function ConnectionDashboard({
@@ -138,6 +140,7 @@ export default function ConnectionDashboard({
 
       {activeTab === 'workflows' && <WorkflowsTab />}
       {activeTab === 'pricing' && <PricingTab />}
+      {activeTab === 'support' && <SupportTab user={user} ssoPayload={ssoPayload} />}
     </div>
   );
 }

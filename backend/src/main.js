@@ -25,6 +25,7 @@ const { createBillingRouter } = require('./billing/billing.router');
 const { createReferralRouter } = require('./referral/referral.router');
 const { createMediaRouter, cleanupExpiredMedia } = require('./media/media.router');
 const { createWorkflowsRouter } = require('./workflows/workflows.router');
+const { createSupportRouter } = require('./support/support.router');
 const WorkflowsService = require('./workflows/workflows.service');
 
 // Middleware
@@ -100,6 +101,7 @@ async function bootstrap() {
   app.use('/referrals', createReferralRouter(referralService));
   app.use('/media', createMediaRouter());
   app.use('/workflows', createWorkflowsRouter(workflowsService, billingService));
+  app.use('/support', createSupportRouter(ssoMiddleware));
 
   // Clean up expired media files on startup and every 30 minutes
   cleanupExpiredMedia();
