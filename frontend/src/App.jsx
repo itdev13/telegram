@@ -153,7 +153,10 @@ export default function App() {
             </p>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <div className="text-xs font-semibold text-gray-900 mb-2">Triggers</div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2 h-2 rounded-full bg-green-400" />
+                  <span className="text-xs font-semibold text-gray-900">6 Triggers</span>
+                </div>
                 <div className="space-y-1.5">
                   {[
                     'New message received',
@@ -171,7 +174,10 @@ export default function App() {
                 </div>
               </div>
               <div>
-                <div className="text-xs font-semibold text-gray-900 mb-2">Actions</div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2 h-2 rounded-full bg-telegram" />
+                  <span className="text-xs font-semibold text-gray-900">11 Actions</span>
+                </div>
                 <div className="space-y-1.5">
                   {[
                     'Send message, photo, or file',
@@ -187,6 +193,15 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+
+            {/* Pricing hint */}
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <span>Pay-as-you-go pricing starting at</span>
+                <span className="font-semibold text-gray-900">$0.01/message</span>
+                <span>— connect to view full pricing details.</span>
               </div>
             </div>
           </div>

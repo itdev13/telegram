@@ -2,6 +2,7 @@ const axios = require('axios');
 const BillingTransaction = require('../schemas/billing-transaction.schema');
 const Referral = require('../schemas/referral.schema');
 const Installation = require('../schemas/installation.schema');
+const AppConfig = require('../schemas/app-config.schema');
 
 // Default pricing per action type (matches competitor pricing)
 const DEFAULT_PRICING = {
@@ -34,10 +35,7 @@ class BillingService {
     if (!this.ghlApiBase) throw new Error('GHL_API_BASE is required');
     if (!this.ghlApiVersion) throw new Error('GHL_API_VERSION is required');
     if (!this.appId) throw new Error('GHL_APP_ID is required');
-    this.internalTestingCompanyIds = (process.env.INTERNAL_TESTING_COMPANY_IDS || '')
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean);
+    console.log('[Billing] Service initialized — internal testing company IDs loaded from AppConfig (DB)');
   }
 
   /**
@@ -55,10 +53,11 @@ class BillingService {
   }
 
   /**
-   * Check if a company is internal testing (skip billing)
+   * Check if a company is internal testing (skip billing).
+   * Reads from AppConfig collection (cached 5 min).
    */
-  isInternalTesting(companyId) {
-    return this.internalTestingCompanyIds.includes(companyId);
+  async isInternalTesting(companyId) {
+    return AppConfig.hasValue('internalTestingCompanyIds', companyId);
   }
 
   /**
@@ -88,8 +87,12 @@ class BillingService {
       // Silent fail
     }
 
-    // Internal testing — skip actual charge
-    if (this.isInternalTesting(companyId)) {
+    // Internal testing — create record but skip actual GHL charge API
+    if (await this.isInternalTesting(companyId)) {
+      console.log(
+        `[Billing] Internal company detected — skipping charge API | companyId=${companyId} locationId=${locationId} action=${actionType} amount=$${amount}`,
+      );
+
       const transaction = await BillingTransaction.create({
         locationId,
         companyId,
@@ -102,6 +105,10 @@ class BillingService {
         paymentIgnored: true,
         referralCode,
       });
+
+      console.log(
+        `[Billing] Internal record created | transactionId=${transaction._id} companyId=${companyId} action=${actionType}`,
+      );
 
       // Still track referral revenue for testing visibility
       await this._trackReferralRevenue(locationId, amount, referralCode);
@@ -222,7 +229,8 @@ class BillingService {
   // ═══════════════════════════════════════════════════════════
 
   async hasFunds(companyId, accessToken) {
-    if (this.internalTestingCompanyIds.includes(companyId)) {
+    if (await this.isInternalTesting(companyId)) {
+      console.log(`[Billing] Internal company ${companyId} — hasFunds bypassed (always true)`);
       return true;
     }
 

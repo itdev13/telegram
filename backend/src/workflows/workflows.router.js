@@ -16,7 +16,8 @@ function createWorkflowsRouter(workflowsService, billingService) {
     billingService
       .chargeForAction({ locationId, companyId, actionType })
       .then((r) => {
-        if (r.success) console.log(`[Billing] ${actionType} charge OK: ${r.chargeId}`);
+        if (r.internalTesting) console.log(`[Billing] ${actionType} — internal company, charge skipped (record created)`);
+        else if (r.success) console.log(`[Billing] ${actionType} charge OK: ${r.chargeId}`);
         else console.warn(`[Billing] ${actionType} charge failed: ${r.error}`);
       })
       .catch((err) => console.error(`[Billing] ${actionType} error: ${err.message}`));
