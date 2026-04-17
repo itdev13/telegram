@@ -25,6 +25,7 @@ const BillingTransactionSchema = new mongoose.Schema(
         'edit_group_permissions',
         'send_message_user',
         'send_message_group',
+        'send_reaction',
         // Legacy
         'message_sync',
         'subscription',

@@ -4,6 +4,15 @@ function createWorkflowsRouter(workflowsService, billingService) {
   const router = Router();
 
   /**
+   * Return a structured error to GHL with 400 so the workflow step shows as failed.
+   * GHL displays the `message` field in the execution history.
+   */
+  function actionError(res, error) {
+    const message = error.message || 'Action failed';
+    return res.status(400).json({ success: false, message, error: message });
+  }
+
+  /**
    * Fire-and-forget billing charge for workflow actions.
    * Never blocks the action response.
    */
@@ -48,7 +57,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
       res.json(result);
     } catch (error) {
       console.error(`Trigger subscription failed: ${error.message}`);
-      res.json({ success: false, error: error.message });
+      actionError(res, error);
     }
   });
 
@@ -69,7 +78,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
       res.json({ success: true, data: result });
     } catch (error) {
       console.error(`Action send-message failed: ${error.message}`);
-      res.json({ success: false, error: error.message });
+      actionError(res, error);
     }
   });
 
@@ -86,7 +95,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
       res.json({ success: true, data: result });
     } catch (error) {
       console.error(`Action send-buttons failed: ${error.message}`);
-      res.json({ success: false, error: error.message });
+      actionError(res, error);
     }
   });
 
@@ -99,7 +108,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
       res.json({ success: true, data: result });
     } catch (error) {
       console.error(`Action forward-message failed: ${error.message}`);
-      res.json({ success: false, error: error.message });
+      actionError(res, error);
     }
   });
 
@@ -111,7 +120,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
       res.json({ success: true, data: result });
     } catch (error) {
       console.error(`Action edit-message failed: ${error.message}`);
-      res.json({ success: false, error: error.message });
+      actionError(res, error);
     }
   });
 
@@ -123,7 +132,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
       res.json({ success: true, data: result });
     } catch (error) {
       console.error(`Action delete-message failed: ${error.message}`);
-      res.json({ success: false, error: error.message });
+      actionError(res, error);
     }
   });
 
@@ -140,7 +149,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
       res.json({ success: true, data: result });
     } catch (error) {
       console.error(`Action send-phone-message failed: ${error.message}`);
-      res.json({ success: false, error: error.message });
+      actionError(res, error);
     }
   });
 
@@ -155,7 +164,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
       res.json({ success: true, data: result });
     } catch (error) {
       console.error(`Action send-to-group failed: ${error.message}`);
-      res.json({ success: false, error: error.message });
+      actionError(res, error);
     }
   });
 
@@ -168,7 +177,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
       res.json({ success: true, data: result });
     } catch (error) {
       console.error(`Action send-reaction failed: ${error.message}`);
-      res.json({ success: false, error: error.message });
+      actionError(res, error);
     }
   });
 
@@ -181,7 +190,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
       res.json({ success: true, data: result });
     } catch (error) {
       console.error(`Action generate-invite-link failed: ${error.message}`);
-      res.json({ success: false, error: error.message });
+      actionError(res, error);
     }
   });
 
@@ -193,7 +202,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
       res.json({ success: true, data: result });
     } catch (error) {
       console.error(`Action pin-message failed: ${error.message}`);
-      res.json({ success: false, error: error.message });
+      actionError(res, error);
     }
   });
 
@@ -206,7 +215,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
       res.json({ success: true, data: result });
     } catch (error) {
       console.error(`Action edit-group-permissions failed: ${error.message}`);
-      res.json({ success: false, error: error.message });
+      actionError(res, error);
     }
   });
 
