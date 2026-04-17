@@ -15,16 +15,12 @@ class WorkflowsService {
   // ═══════════════════════════════════════════════════════════
 
   async handleSubscription(payload) {
-    console.log(`[Workflows] handleSubscription called with payload:`, JSON.stringify(payload, null, 2));
-
     const { triggerData, extras, meta } = payload;
     const { eventType, targetUrl, filters } = triggerData;
     const { locationId, workflowId, companyId } = extras;
     const triggerKey = meta.key;
 
-    console.log(
-      `Trigger subscription ${eventType}: key=${triggerKey}, workflow=${workflowId}, location=${locationId}`,
-    );
+    console.log(`[Workflows] Subscription ${eventType}: key=${triggerKey}, workflow=${workflowId}, location=${locationId}`);
 
     switch (eventType) {
       case 'CREATED':
@@ -68,73 +64,46 @@ class WorkflowsService {
 
   async fireTrigger(triggerKey, locationId, eventData) {
     try {
-      console.log(`[Workflows] fireTrigger called: key=${triggerKey}, location=${locationId}`);
-
       const subscriptions = await WorkflowSubscription.find({
         locationId,
         triggerKey,
         status: 'active',
       });
 
-      console.log(`[Workflows] Found ${subscriptions.length} active subscription(s) for ${triggerKey} @ ${locationId}`);
+      if (subscriptions.length === 0) return;
 
-      if (subscriptions.length === 0) {
-        console.log(`[Workflows] No subscriptions found — has a GHL workflow been created with this trigger?`);
-        return;
-      }
-
-      // Get access token for authenticated trigger execution
       let accessToken = null;
       try {
         accessToken = await this.auth.getAccessToken(locationId);
       } catch (err) {
-        console.error(`[Workflows] Failed to get access token for ${locationId}: ${err.message}`);
+        console.error(`[Workflows] Cannot get token for trigger ${triggerKey} @ ${locationId}: ${err.message}`);
       }
-
-      console.log(
-        `[Workflows] Firing trigger ${triggerKey} for location ${locationId} → ${subscriptions.length} subscription(s) (auth: ${!!accessToken})`,
-      );
 
       const headers = {
         'Content-Type': 'application/json',
         'Version': process.env.GHL_API_VERSION || '2021-07-28',
       };
-      if (accessToken) {
-        headers['Authorization'] = `Bearer ${accessToken}`;
-      }
+      if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
       const results = await Promise.allSettled(
-        subscriptions.map(async (sub) => {
-          console.log(`[Workflows] POSTing to targetUrl: ${sub.targetUrl} (workflow: ${sub.workflowId})`);
-          console.log(`[Workflows] Headers: ${JSON.stringify({ ...headers, Authorization: headers.Authorization ? 'Bearer ***' + headers.Authorization.slice(-8) : 'NONE' })}`);
-          console.log(`[Workflows] Payload: ${JSON.stringify(eventData)}`);
-          try {
-            const response = await axios.post(sub.targetUrl, eventData, {
-              headers,
-              timeout: 10000,
-            });
-            console.log(`[Workflows] Response status: ${response.status}`);
-            console.log(`[Workflows] Response data: ${JSON.stringify(response.data)}`);
-            return response;
-          } catch (err) {
-            console.error(`[Workflows] Error status: ${err.response?.status}`);
-            console.error(`[Workflows] Error data: ${JSON.stringify(err.response?.data || err.message)}`);
-            throw err;
-          }
-        }),
+        subscriptions.map((sub) =>
+          axios.post(sub.targetUrl, eventData, { headers, timeout: 10000 }),
+        ),
       );
 
       for (let i = 0; i < results.length; i++) {
+        const sub = subscriptions[i];
         if (results[i].status === 'fulfilled') {
-          console.log(`[Workflows] ✓ Trigger fired successfully to workflow ${subscriptions[i].workflowId}`);
+          console.log(`[Workflows] Fired ${triggerKey} → workflow ${sub.workflowId} (location ${locationId})`);
         } else {
+          const err = results[i].reason;
           console.error(
-            `[Workflows] ✗ Failed to fire trigger to workflow ${subscriptions[i].workflowId}: ${results[i].reason?.message || results[i].reason}`,
+            `[Workflows] Failed to fire ${triggerKey} → workflow ${sub.workflowId}: ${err.response?.status} ${err.response?.data?.message || err.message}`,
           );
         }
       }
     } catch (error) {
-      console.error(`Error firing trigger ${triggerKey}: ${error.message}`);
+      console.error(`[Workflows] fireTrigger error for ${triggerKey} @ ${locationId}: ${error.message}`);
     }
   }
 

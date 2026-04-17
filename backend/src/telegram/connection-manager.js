@@ -81,7 +81,6 @@ class ConnectionManager {
     if (!entry) return;
 
     try {
-      // Save session before destroying
       const sessionString = entry.client.session.save();
       if (sessionString) {
         const encrypted = this.crypto.encrypt(sessionString);
@@ -89,11 +88,13 @@ class ConnectionManager {
           { locationId },
           { 'phoneConfig.sessionString': encrypted },
         );
+        console.log(`[Phone] Session saved for location ${locationId}`);
       }
 
       await entry.client.destroy();
+      console.log(`[Phone] Client disconnected for location ${locationId}`);
     } catch (error) {
-      console.error(`Error disconnecting client for ${locationId}:`, error.message);
+      console.error(`[Phone] Error disconnecting client for location ${locationId}: ${error.message}`);
     }
 
     this.clients.delete(locationId);
@@ -138,6 +139,7 @@ class ConnectionManager {
   async sendMessage(locationId, chatId, text) {
     const client = await this._getClientOrThrow(locationId);
     const result = await client.sendMessage(chatId, { message: text });
+    console.log(`[Phone] Message sent to chat ${chatId} (location ${locationId}), msgId=${result.id}`);
     return result.id;
   }
 
@@ -147,6 +149,7 @@ class ConnectionManager {
       file: photoUrl,
       message: caption || '',
     });
+    console.log(`[Phone] Photo sent to chat ${chatId} (location ${locationId}), msgId=${result.id}`);
     return result.id;
   }
 
@@ -157,6 +160,7 @@ class ConnectionManager {
       message: caption || '',
       forceDocument: true,
     });
+    console.log(`[Phone] Document sent to chat ${chatId} (location ${locationId}), msgId=${result.id}`);
     return result.id;
   }
 
@@ -169,6 +173,7 @@ class ConnectionManager {
 
   async sendReaction(locationId, chatId, messageId, emoji) {
     const client = await this._getClientOrThrow(locationId);
+    console.log(`[Phone] Sending reaction "${emoji}" to msgId=${messageId} in chat ${chatId} (location ${locationId})`);
     await client.invoke(
       new Api.messages.SendReaction({
         peer: chatId,
@@ -176,6 +181,7 @@ class ConnectionManager {
         reaction: [new Api.ReactionEmoji({ emoticon: emoji })],
       }),
     );
+    console.log(`[Phone] Reaction "${emoji}" sent to msgId=${messageId} in chat ${chatId}`);
     return true;
   }
 
@@ -185,24 +191,28 @@ class ConnectionManager {
       messages: [messageId],
       fromPeer: fromChatId,
     });
+    console.log(`[Phone] Forwarded msgId=${messageId} from chat ${fromChatId} → ${toChatId} (location ${locationId}), newMsgId=${result[0]?.id}`);
     return result[0]?.id;
   }
 
   async editMessage(locationId, chatId, messageId, text) {
     const client = await this._getClientOrThrow(locationId);
     await client.editMessage(chatId, { message: messageId, text });
+    console.log(`[Phone] Edited msgId=${messageId} in chat ${chatId} (location ${locationId})`);
     return true;
   }
 
   async deleteMessage(locationId, chatId, messageId) {
     const client = await this._getClientOrThrow(locationId);
     await client.deleteMessages(chatId, [messageId], { revoke: true });
+    console.log(`[Phone] Deleted msgId=${messageId} in chat ${chatId} (location ${locationId})`);
     return true;
   }
 
   async pinMessage(locationId, chatId, messageId) {
     const client = await this._getClientOrThrow(locationId);
     await client.pinMessage(chatId, messageId);
+    console.log(`[Phone] Pinned msgId=${messageId} in chat ${chatId} (location ${locationId})`);
     return true;
   }
 
@@ -211,12 +221,14 @@ class ConnectionManager {
     const result = await client.invoke(
       new Api.messages.ExportChatInvite({ peer: chatId }),
     );
+    console.log(`[Phone] Invite link generated for chat ${chatId} (location ${locationId}): ${result.link}`);
     return result.link;
   }
 
   async sendToGroup(locationId, groupId, text) {
     const client = await this._getClientOrThrow(locationId);
     const result = await client.sendMessage(groupId, { message: text });
+    console.log(`[Phone] Message sent to group ${groupId} (location ${locationId}), msgId=${result.id}`);
     return result.id;
   }
 
@@ -227,6 +239,7 @@ class ConnectionManager {
       message: caption || '',
       forceDocument: true,
     });
+    console.log(`[Phone] File sent to group ${groupId} (location ${locationId}), msgId=${result.id}`);
     return result.id;
   }
 
@@ -250,6 +263,7 @@ class ConnectionManager {
         }),
       }),
     );
+    console.log(`[Phone] Group permissions updated for chat ${chatId} (location ${locationId})`);
     return true;
   }
 

@@ -144,7 +144,7 @@ class TelegramService {
   async sendReaction(botToken, chatId, messageId, emoji) {
     await this._callTelegramApi(botToken, 'setMessageReaction', {
       chat_id: chatId,
-      message_id: messageId,
+      message_id: Number(messageId),
       reaction: [{ type: 'emoji', emoji }],
     });
     return true;
@@ -196,6 +196,8 @@ class TelegramService {
 
         // Don't retry on client errors (except 429 rate limit)
         if (status && status >= 400 && status < 500 && status !== 429) {
+          const description = error.response?.data?.description || 'no description';
+          console.error(`[TelegramService] ${method} failed ${status}: ${description} | payload=${JSON.stringify(data)}`);
           throw error;
         }
 

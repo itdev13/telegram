@@ -123,6 +123,14 @@ class BillingService {
       };
     }
 
+    // Skip charge if meter ID is not configured
+    if (!meterId) {
+      console.warn(
+        `[Billing] Skipping charge — meterId not configured for action "${actionType}". Set METER_ID_* env vars.`,
+      );
+      return { success: false, error: 'Meter ID not configured' };
+    }
+
     // Create pending transaction
     const transaction = await BillingTransaction.create({
       locationId,

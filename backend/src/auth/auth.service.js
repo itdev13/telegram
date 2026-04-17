@@ -222,6 +222,7 @@ class AuthService {
       },
     );
 
+    console.log(`Company token refreshed for company: ${companyId}`);
     return access_token;
   }
 
@@ -262,6 +263,7 @@ class AuthService {
         },
       );
 
+      console.log(`Access token refreshed for location: ${locationId}`);
       return access_token;
     } catch (error) {
       // Race condition handling: if another process already refreshed

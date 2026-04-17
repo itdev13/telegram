@@ -156,6 +156,7 @@ class SettingsService {
         },
       };
     } catch (error) {
+      console.error(`[Settings] Failed to fetch webhook info for location ${locationId}: ${error.message}`);
       return {
         status: 'error',
         webhook: null,
