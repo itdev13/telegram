@@ -179,22 +179,21 @@ class WorkflowsService {
 
   async executeForwardMessage(payload) {
     const { locationId, contactId } = payload.extras;
-    const { fromChatId, messageId: srcMessageId, message } = this._getData(payload);
-    if (!fromChatId || !srcMessageId) throw new Error('fromChatId and messageId are required');
+    const { messageId: srcMessageId, message } = this._getData(payload);
+    if (!srcMessageId) throw new Error('messageId is required');
+    if (!message) throw new Error('message text is required');
 
     const { chatId, transport, botToken } = await this._resolve(locationId, contactId);
-    let forwardedMessageId, textMessageId;
+    let textMessageId;
 
     if (transport === 'phone') {
-      forwardedMessageId = await this.connectionManager.forwardMessage(locationId, Number(fromChatId), chatId, Number(srcMessageId));
-      if (message) textMessageId = await this.connectionManager.sendMessage(locationId, chatId, message, forwardedMessageId);
+      textMessageId = await this.connectionManager.sendMessage(locationId, chatId, message, Number(srcMessageId));
     } else {
-      forwardedMessageId = await this.telegram.forwardMessage(botToken, chatId, fromChatId, srcMessageId);
-      if (message) textMessageId = await this.telegram.sendMessage(botToken, chatId, message, forwardedMessageId);
+      textMessageId = await this.telegram.sendMessage(botToken, chatId, message, Number(srcMessageId));
     }
 
-    console.log(`Workflow action [${transport}]: forwarded msgId=${srcMessageId} to chat ${chatId}${message ? ' + follow-up text' : ''}`);
-    return { forwardedMessageId, textMessageId, status: 'sent', telegramChatId: chatId };
+    console.log(`Workflow action [${transport}]: replied to msgId=${srcMessageId} in chat ${chatId} with text`);
+    return { textMessageId, status: 'sent', telegramChatId: chatId };
   }
 
   async executeEditMessage(payload) {
