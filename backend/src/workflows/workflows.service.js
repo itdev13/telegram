@@ -187,10 +187,10 @@ class WorkflowsService {
 
     if (transport === 'phone') {
       forwardedMessageId = await this.connectionManager.forwardMessage(locationId, Number(fromChatId), chatId, Number(srcMessageId));
-      if (message) textMessageId = await this.connectionManager.sendMessage(locationId, chatId, message);
+      if (message) textMessageId = await this.connectionManager.sendMessage(locationId, chatId, message, forwardedMessageId);
     } else {
       forwardedMessageId = await this.telegram.forwardMessage(botToken, chatId, fromChatId, srcMessageId);
-      if (message) textMessageId = await this.telegram.sendMessage(botToken, chatId, message);
+      if (message) textMessageId = await this.telegram.sendMessage(botToken, chatId, message, forwardedMessageId);
     }
 
     console.log(`Workflow action [${transport}]: forwarded msgId=${srcMessageId} to chat ${chatId}${message ? ' + follow-up text' : ''}`);

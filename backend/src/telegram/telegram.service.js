@@ -67,11 +67,12 @@ class TelegramService {
 
   // ── Send Messages ──────────────────────────────────────────
 
-  async sendMessage(botToken, chatId, text) {
+  async sendMessage(botToken, chatId, text, replyToMessageId) {
     const res = await this._callTelegramApi(botToken, 'sendMessage', {
       chat_id: chatId,
       text,
       parse_mode: 'HTML',
+      ...(replyToMessageId ? { reply_parameters: { message_id: Number(replyToMessageId) } } : {}),
     });
     return res.result.message_id;
   }

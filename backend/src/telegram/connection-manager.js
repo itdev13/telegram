@@ -136,9 +136,12 @@ class ConnectionManager {
 
   // ── Messaging ────────────────────────────────────────
 
-  async sendMessage(locationId, chatId, text) {
+  async sendMessage(locationId, chatId, text, replyToMessageId) {
     const client = await this._getClientOrThrow(locationId);
-    const result = await client.sendMessage(chatId, { message: text });
+    const result = await client.sendMessage(chatId, {
+      message: text,
+      ...(replyToMessageId ? { replyTo: replyToMessageId } : {}),
+    });
     console.log(`[Phone] Message sent to chat ${chatId} (location ${locationId}), msgId=${result.id}`);
     return result.id;
   }
