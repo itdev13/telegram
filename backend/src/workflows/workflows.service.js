@@ -144,9 +144,22 @@ class WorkflowsService {
 
   async executeSendButtons(payload) {
     const { locationId, contactId } = payload.extras;
-    const { message, buttons } = this._getData(payload);
+    const { message } = this._getData(payload);
+    let { buttons } = this._getData(payload);
+
     if (!message) throw new Error('Message text is required');
-    if (!buttons || !Array.isArray(buttons)) throw new Error('Buttons array is required');
+    if (!buttons) throw new Error('Buttons array is required');
+
+    // GHL may send the buttons as a JSON string — parse it
+    if (typeof buttons === 'string') {
+      try {
+        buttons = JSON.parse(buttons.trim());
+      } catch {
+        throw new Error(`buttons field is not valid JSON: ${buttons}`);
+      }
+    }
+
+    if (!Array.isArray(buttons)) throw new Error('Buttons must be an array');
 
     const { chatId, botToken } = await this._resolve(locationId, contactId);
     if (!botToken) throw new Error('Send Buttons requires a bot connection.');
