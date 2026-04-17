@@ -317,14 +317,17 @@ class WorkflowsService {
   async executePinMessage(payload) {
     const { locationId, contactId } = payload.extras;
     const { messageId: targetMessageId } = this._getData(payload);
-    if (!targetMessageId) throw new Error('messageId is required');
+    if (!targetMessageId) throw new Error('messageId is required — pass the numeric Telegram message ID (e.g. from trigger output telegramMessageId)');
+
+    const parsedMessageId = Number(targetMessageId);
+    if (!parsedMessageId || isNaN(parsedMessageId)) throw new Error(`messageId must be a valid number, got: "${targetMessageId}"`);
 
     const { chatId, transport, botToken } = await this._resolve(locationId, contactId);
 
     if (transport === 'phone') {
-      await this.connectionManager.pinMessage(locationId, chatId, Number(targetMessageId));
+      await this.connectionManager.pinMessage(locationId, chatId, parsedMessageId);
     } else {
-      await this.telegram.pinMessage(botToken, chatId, targetMessageId);
+      await this.telegram.pinMessage(botToken, chatId, parsedMessageId);
     }
 
     console.log(`Workflow action [${transport}]: pinned message ${targetMessageId} in chat ${chatId}`);
