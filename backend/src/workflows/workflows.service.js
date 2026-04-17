@@ -115,9 +115,14 @@ class WorkflowsService {
   // ALL ACTIONS (transport-agnostic: uses bot or phone, whichever is available)
   // ═══════════════════════════════════════════════════════════
 
+  // GHL sends action inputs in payload.data or payload.inputData depending on version
+  _getData(payload) {
+    return payload.data || payload.inputData || {};
+  }
+
   async executeSendMessage(payload) {
     const { locationId, contactId } = payload.extras;
-    const { message, photoUrl, documentUrl, caption } = payload.data;
+    const { message, photoUrl, documentUrl, caption } = this._getData(payload);
     if (!message && !photoUrl && !documentUrl) throw new Error('At least one of message, photoUrl, or documentUrl is required');
 
     const { chatId, transport, botToken } = await this._resolve(locationId, contactId);
@@ -139,7 +144,7 @@ class WorkflowsService {
 
   async executeSendButtons(payload) {
     const { locationId, contactId } = payload.extras;
-    const { message, buttons } = payload.data;
+    const { message, buttons } = this._getData(payload);
     if (!message) throw new Error('Message text is required');
     if (!buttons || !Array.isArray(buttons)) throw new Error('Buttons array is required');
 
@@ -161,7 +166,7 @@ class WorkflowsService {
 
   async executeForwardMessage(payload) {
     const { locationId, contactId } = payload.extras;
-    const { fromChatId, messageId: srcMessageId } = payload.data;
+    const { fromChatId, messageId: srcMessageId } = this._getData(payload);
     if (!fromChatId || !srcMessageId) throw new Error('fromChatId and messageId are required');
 
     const { chatId, transport, botToken } = await this._resolve(locationId, contactId);
@@ -179,7 +184,7 @@ class WorkflowsService {
 
   async executeEditMessage(payload) {
     const { locationId, contactId } = payload.extras;
-    const { messageId: targetMessageId, message } = payload.data;
+    const { messageId: targetMessageId, message } = this._getData(payload);
     if (!targetMessageId || !message) throw new Error('messageId and message are required');
 
     const { chatId, transport, botToken } = await this._resolve(locationId, contactId);
@@ -196,7 +201,7 @@ class WorkflowsService {
 
   async executeDeleteMessage(payload) {
     const { locationId, contactId } = payload.extras;
-    const { messageId: targetMessageId } = payload.data;
+    const { messageId: targetMessageId } = this._getData(payload);
     if (!targetMessageId) throw new Error('messageId is required');
 
     const { chatId, transport, botToken } = await this._resolve(locationId, contactId);
@@ -213,7 +218,7 @@ class WorkflowsService {
 
   async executeSendPhoneMessage(payload) {
     const { locationId, contactId } = payload.extras;
-    const { message } = payload.data;
+    const { message } = this._getData(payload);
     if (!message) throw new Error('Message text is required');
 
     const { chatId, transport, botToken } = await this._resolve(locationId, contactId);
@@ -231,7 +236,7 @@ class WorkflowsService {
 
   async executeSendToGroup(payload) {
     const { locationId } = payload.extras;
-    const { groupId, message, fileUrl, caption } = payload.data;
+    const { groupId, message, fileUrl, caption } = this._getData(payload);
     if (!groupId) throw new Error('groupId is required');
     if (!message && !fileUrl) throw new Error('At least one of message or fileUrl is required');
 
@@ -280,7 +285,7 @@ class WorkflowsService {
 
   async executeGenerateInviteLink(payload) {
     const { locationId } = payload.extras;
-    const { groupId } = payload.data;
+    const { groupId } = this._getData(payload);
     if (!groupId) throw new Error('groupId is required');
 
     const { transport, botToken } = await this._resolveTransport(locationId);
@@ -298,7 +303,7 @@ class WorkflowsService {
 
   async executePinMessage(payload) {
     const { locationId, contactId } = payload.extras;
-    const { messageId: targetMessageId } = payload.data;
+    const { messageId: targetMessageId } = this._getData(payload);
     if (!targetMessageId) throw new Error('messageId is required');
 
     const { chatId, transport, botToken } = await this._resolve(locationId, contactId);
@@ -315,7 +320,7 @@ class WorkflowsService {
 
   async executeEditGroupPermissions(payload) {
     const { locationId } = payload.extras;
-    const { groupId, permissions } = payload.data;
+    const { groupId, permissions } = this._getData(payload);
     if (!groupId || !permissions) throw new Error('groupId and permissions are required');
 
     const { transport, botToken } = await this._resolveTransport(locationId);
