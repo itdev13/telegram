@@ -252,15 +252,26 @@ class WorkflowsService {
 
   async executeSendReaction(payload) {
     const { locationId, contactId } = payload.extras;
-    const { messageId: targetMessageId, emoji } = payload.data;
-    if (!targetMessageId || !emoji) throw new Error('messageId and emoji are required');
+
+    // GHL may send action inputs in payload.data or payload.inputData
+    const data = payload.data || payload.inputData || {};
+    const targetMessageId = data.messageId || data.message_id;
+    const emoji = data.emoji;
+
+    console.log(`[Workflows] send-reaction inputs: messageId=${targetMessageId} (${typeof targetMessageId}), emoji=${emoji} | raw.data=${JSON.stringify(payload.data)} raw.inputData=${JSON.stringify(payload.inputData)}`);
+
+    if (!targetMessageId) throw new Error('messageId is required — pass the Telegram message ID to react to (e.g. from trigger output telegramMessageId)');
+    if (!emoji) throw new Error('emoji is required — pass a valid Telegram reaction emoji (e.g. ❤️)');
+
+    const parsedMessageId = Number(targetMessageId);
+    if (!parsedMessageId || isNaN(parsedMessageId)) throw new Error(`messageId must be a valid number, got: "${targetMessageId}"`);
 
     const { chatId, transport, botToken } = await this._resolve(locationId, contactId);
 
     if (transport === 'phone') {
-      await this.connectionManager.sendReaction(locationId, chatId, Number(targetMessageId), emoji);
+      await this.connectionManager.sendReaction(locationId, chatId, parsedMessageId, emoji);
     } else {
-      await this.telegram.sendReaction(botToken, chatId, targetMessageId, emoji);
+      await this.telegram.sendReaction(botToken, chatId, parsedMessageId, emoji);
     }
 
     console.log(`Workflow action [${transport}]: reacted ${emoji} to message ${targetMessageId}`);
