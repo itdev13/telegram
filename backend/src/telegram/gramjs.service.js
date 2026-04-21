@@ -437,13 +437,39 @@ class GramJsService {
   async initAllClients() {
     if (this.disabled) return;
 
-    await this.connectionManager.initAllClients();
+    // Find every location with an active phone session so we can eagerly reconnect.
+    // Why: MTProto updates only flow over a live connection. Lazy-on-first-outbound means
+    // inbound messages stay dead until the user happens to send something — unacceptable UX.
+    const installations = await Installation.find({
+      'phoneConfig.isActive': true,
+      'phoneConfig.sessionString': { $exists: true, $ne: '' },
+    }).select('locationId phoneConfig.sessionString');
 
-    // Register message handlers for all connected clients
-    for (const [locationId] of this.connectionManager.clients) {
+    if (installations.length === 0) {
+      console.log('No active phone connections to restore');
+      await this.recoverPendingUpdates();
+      return;
+    }
+
+    console.log(`${installations.length} phone connection(s) found — reconnecting with stagger...`);
+
+    // Stagger between connects to avoid Telegram rate limits on datacenter handshakes.
+    const STAGGER_MS = 1500;
+    for (const installation of installations) {
+      const locationId = installation.locationId;
+
+      // Register the inbound handler BEFORE connect() so _registerEventHandler finds it.
       this.connectionManager.onNewMessage(locationId, (event) =>
         this.handleInboundUpdate(locationId, event),
       );
+
+      try {
+        await this.connectionManager.connect(locationId, installation.phoneConfig.sessionString);
+      } catch (err) {
+        console.error(`[Startup] Failed to reconnect phone for ${locationId}: ${err.message}`);
+      }
+
+      await new Promise((r) => setTimeout(r, STAGGER_MS));
     }
 
     // Recover any pending updates from before the restart
