@@ -297,21 +297,45 @@ class WorkflowsService {
   }
 
   async executeGenerateInviteLink(payload) {
-    const { locationId } = payload.extras;
+    const { locationId, contactId } = payload.extras;
     const { groupId } = this._getData(payload);
-    if (!groupId) throw new Error('groupId is required');
+    if (!groupId) throw new Error('groupId is required — provide the numeric Telegram group/supergroup ID (e.g. -1001234567890)');
 
+    const parsedGroupId = Number(groupId);
+    if (isNaN(parsedGroupId)) throw new Error(`groupId must be a numeric Telegram group ID, got: "${groupId}". Do not pass an invite link URL.`);
+
+    // Step 1: generate the link (we always need the transport/botToken for the group action)
     const { transport, botToken } = await this._resolveTransport(locationId);
     let inviteLink;
-
     if (transport === 'phone') {
-      inviteLink = await this.connectionManager.generateInviteLink(locationId, Number(groupId));
+      inviteLink = await this.connectionManager.generateInviteLink(locationId, parsedGroupId);
     } else {
-      inviteLink = await this.telegram.generateInviteLink(botToken, Number(groupId));
+      inviteLink = await this.telegram.generateInviteLink(botToken, parsedGroupId);
+    }
+    console.log(`Workflow action [${transport}]: generated invite link for group ${groupId}`);
+
+    // Step 2: deliver the link to the triggering contact.
+    // Failure to deliver must not hide the generated link — callers that chain the action still use the return value.
+    let delivered = false;
+    let deliveryError = null;
+    if (contactId) {
+      try {
+        const resolved = await this._resolve(locationId, contactId);
+        const text = `Here's your invite link to join the group:\n${inviteLink}`;
+        if (resolved.transport === 'phone') {
+          await this.connectionManager.sendMessage(locationId, resolved.chatId, text);
+        } else {
+          await this.telegram.sendMessage(resolved.botToken, resolved.chatId, text);
+        }
+        delivered = true;
+        console.log(`Workflow action [${resolved.transport}]: delivered invite link to contact ${contactId}`);
+      } catch (err) {
+        deliveryError = err.message;
+        console.error(`Workflow action: failed to deliver invite link to contact ${contactId}: ${err.message}`);
+      }
     }
 
-    console.log(`Workflow action [${transport}]: generated invite link for group ${groupId}`);
-    return { inviteLink, status: 'generated', groupId };
+    return { inviteLink, delivered, deliveryError, status: 'generated', groupId };
   }
 
   async executePinMessage(payload) {
