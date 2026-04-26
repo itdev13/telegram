@@ -269,6 +269,21 @@ class GramJsService {
         { status: 'processing', lastAttemptAt: new Date(), $inc: { attempts: 1 } },
       );
 
+      // Dedup: skip if this Telegram message id was already processed (bot webhook may have handled it)
+      const alreadyProcessed = await MessageLog.findOne({
+        locationId,
+        telegramMessageId: message.id,
+        direction: MessageDirection.INBOUND,
+      });
+      if (alreadyProcessed) {
+        console.log(`Duplicate phone inbound message ${message.id} for location ${locationId}, skipping`);
+        await PendingUpdate.updateOne(
+          { _id: pendingUpdate._id },
+          { status: 'completed', processedAt: new Date() },
+        );
+        return;
+      }
+
       // Step 3: Normalize to Bot API shape for contactMappingService
       const telegramUser = senderInfo;
 

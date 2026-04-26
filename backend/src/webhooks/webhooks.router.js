@@ -47,6 +47,17 @@ function createWebhooksRouter(
     console.log(`Inbound Telegram message from chat ${chatId} for location ${locationId}`);
 
     try {
+      // Dedup: skip if this Telegram message_id was already processed (phone path may have handled it)
+      const alreadyProcessed = await MessageLog.findOne({
+        locationId,
+        telegramMessageId: message.message_id,
+        direction: MessageDirection.INBOUND,
+      });
+      if (alreadyProcessed) {
+        console.log(`Duplicate bot inbound message ${message.message_id} for location ${locationId}, skipping`);
+        return res.json({ ok: true });
+      }
+
       // Step 3: Get or create the GHL contact
       const { ghlContactId, isNew: isNewContact } =
         await contactMappingService.getOrCreateContact(locationId, telegramUser, chatId);

@@ -25,6 +25,7 @@ const MessageLogSchema = new mongoose.Schema(
 );
 
 MessageLogSchema.index({ locationId: 1, createdAt: -1 });
+MessageLogSchema.index({ locationId: 1, telegramMessageId: 1, direction: 1 });
 
 const MessageLog = mongoose.model('MessageLog', MessageLogSchema);
 
