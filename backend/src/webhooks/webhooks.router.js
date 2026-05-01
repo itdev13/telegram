@@ -288,10 +288,10 @@ function createWebhooksRouter(
           }
         }
 
-        // Update activity timestamp
+        // Update activity timestamp (skip if phoneConfig is null — phone may have disconnected)
         await Installation.updateOne(
-          { locationId },
-          { 'phoneConfig.lastActivityAt': new Date() },
+          { locationId, phoneConfig: { $ne: null } },
+          { $set: { 'phoneConfig.lastActivityAt': new Date() } },
         );
       } else {
         // Bot connection — existing flow (fetch bot token here, not earlier)

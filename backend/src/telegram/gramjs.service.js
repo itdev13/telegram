@@ -338,10 +338,10 @@ class GramJsService {
         status: MessageStatus.DELIVERED,
       });
 
-      // Step 10: Update activity timestamp
+      // Step 10: Update activity timestamp (skip if phoneConfig is null/missing — happens when phone disconnected mid-flight)
       await Installation.updateOne(
-        { locationId },
-        { 'phoneConfig.lastActivityAt': new Date() },
+        { locationId, phoneConfig: { $ne: null } },
+        { $set: { 'phoneConfig.lastActivityAt': new Date() } },
       );
 
       // Step 11: Mark write-ahead as completed
@@ -380,9 +380,15 @@ class GramJsService {
         }
       }
     } catch (error) {
+      const code = error.code || error.codeName;
+      const status = error.response?.status;
+      const ghlMsg = error.response?.data?.message || error.response?.data?.error;
       console.error(
-        `Failed to process phone inbound for location ${locationId}:`,
-        error.message,
+        `Failed to process phone inbound for location ${locationId}\n` +
+        `  Step: ${error._step || 'unknown'}\n` +
+        `  Type: ${error.name || 'Error'}${code ? ` (${code})` : ''}${status ? ` [HTTP ${status}]` : ''}\n` +
+        `  Message: ${ghlMsg || error.message}\n` +
+        `  Stack: ${error.stack?.split('\n').slice(0, 3).join(' | ')}`
       );
 
       const updated = await PendingUpdate.findById(pendingUpdate._id);

@@ -97,8 +97,16 @@ class WorkflowsService {
           console.log(`[Workflows] Fired ${triggerKey} → workflow ${sub.workflowId} (location ${locationId})`);
         } else {
           const err = results[i].reason;
+          const status = err.response?.status;
+          const ghlMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Unknown error';
+          const reason = classifyWorkflowError(status, ghlMsg);
+
           console.error(
-            `[Workflows] Failed to fire ${triggerKey} → workflow ${sub.workflowId}: ${err.response?.status} ${err.response?.data?.message || err.message}`,
+            `[Workflows] Failed to fire ${triggerKey} → workflow ${sub.workflowId} (location ${locationId})\n` +
+            `  Status: ${status || 'no-response'}\n` +
+            `  Reason: ${reason.label}\n` +
+            `  GHL says: ${ghlMsg}\n` +
+            `  Action: ${reason.action}`
           );
         }
       }
@@ -416,6 +424,68 @@ class WorkflowsService {
     const transport = hasPhone ? 'phone' : 'bot';
     return { transport, botToken };
   }
+}
+
+/**
+ * Classify a GHL workflow trigger failure into a user-actionable reason.
+ * GHL surfaces a wide variety of error messages — this maps the common ones
+ * into a label + action so logs are readable at a glance.
+ */
+function classifyWorkflowError(status, message = '') {
+  const msg = String(message).toLowerCase();
+  console.log("msg error: ", msg)
+  if (msg.includes('premium action') && (msg.includes('does not have enough funds') || msg.includes('billing'))) {
+    return {
+      label: 'GHL Premium Action billing failed',
+      action: 'Customer needs to top up Premium Action credits in GHL (Settings → Billing → Premium Action Pricing). This is GHL workflow billing, NOT our app wallet.'
+    };
+  }
+  if (msg.includes('does not have enough funds') || msg.includes('insufficient')) {
+    return {
+      label: 'GHL company funds insufficient',
+      action: 'Customer needs to add funds to the GHL company wallet for the failing premium step.'
+    };
+  }
+  if (status === 401 || status === 403 || msg.includes('unauthorized') || msg.includes('forbidden')) {
+    return {
+      label: 'Auth rejected by GHL',
+      action: 'OAuth token may be expired or revoked. Verify the install is still active.'
+    };
+  }
+  if (status === 404 || msg.includes('not found') || msg.includes('workflow does not exist')) {
+    return {
+      label: 'Workflow not found',
+      action: 'Workflow was deleted or unpublished in GHL. Remove the stale subscription from workflow_subscriptions.'
+    };
+  }
+  if (status === 429 || msg.includes('rate limit') || msg.includes('too many')) {
+    return {
+      label: 'GHL rate limit hit',
+      action: 'Throttle outbound trigger fires. Will retry on next inbound message.'
+    };
+  }
+  if (status === 408 || msg.includes('timeout') || msg.includes('timed out')) {
+    return {
+      label: 'Request to GHL timed out',
+      action: 'GHL took >10s to respond. Likely transient — next inbound message will retry.'
+    };
+  }
+  if (status >= 500) {
+    return {
+      label: 'GHL server error',
+      action: 'Transient GHL outage — next inbound message will retry. If persistent, check GHL status page.'
+    };
+  }
+  if (!status) {
+    return {
+      label: 'No response from GHL',
+      action: 'Network error or DNS failure reaching the trigger URL. Check connectivity.'
+    };
+  }
+  return {
+    label: `GHL returned ${status}`,
+    action: 'Inspect the GHL response message above. Not a known billing/auth/rate issue.'
+  };
 }
 
 module.exports = WorkflowsService;
