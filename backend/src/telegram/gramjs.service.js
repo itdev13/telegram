@@ -400,13 +400,28 @@ class GramJsService {
 
       // Step 12: Fire workflow triggers (fire-and-forget)
       if (this.workflows) {
+        // Detect media type from the GramJS message.media class — keeps parity with the bot path.
+        const detectMediaType = (media) => {
+          if (!media || media.className === 'MessageMediaEmpty' || media.className === 'MessageMediaWebPage') return null;
+          if (media.className === 'MessageMediaPhoto') return 'photo';
+          if (media.className === 'MessageMediaDocument') {
+            const mime = media.document?.mimeType || '';
+            if (mime.startsWith('video/')) return 'video';
+            if (mime.startsWith('audio/')) return 'audio';
+            if (mime.startsWith('image/')) return 'photo';
+            return 'document';
+          }
+          return 'document';
+        };
+        const mediaType = detectMediaType(message.media);
+
         const triggerPayload = {
           contactId: ghlContactId,
           telegramChatId: chatIdNum,
           telegramUsername: telegramUser.username || '',
           telegramFirstName: telegramUser.first_name,
           messageText: messageText,
-          messageType: message.media ? 'photo' : 'text',
+          messageType: mediaType || 'text',
           telegramMessageId: message.id,
           timestamp: new Date().toISOString(),
         };
@@ -415,6 +430,19 @@ class GramJsService {
         this.workflows
           .fireTrigger('telegram_message_received', locationId, triggerPayload)
           .catch((err) => console.error(`[Workflows] Failed to fire message trigger: ${err.message}`));
+
+        // Media received (photo, video, audio, document)
+        if (mediaType) {
+          const mediaPayload = {
+            ...triggerPayload,
+            mediaType,
+            mediaUrl: attachments.length > 0 ? attachments[0] : '',
+          };
+          console.log(`[Workflows] Firing telegram_media_received for location ${locationId} (phone, ${mediaType})`);
+          this.workflows
+            .fireTrigger('telegram_media_received', locationId, mediaPayload)
+            .catch((err) => console.error(`[Workflows] Failed to fire media trigger: ${err.message}`));
+        }
 
         if (isNewContact) {
           console.log(`[Workflows] Firing new_telegram_contact for location ${locationId} (phone)`);
