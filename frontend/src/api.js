@@ -15,8 +15,12 @@ export const api = {
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: 'Request failed' }));
-      throw new Error(err.message || `HTTP ${res.status}`);
+      const body = await res.json().catch(() => ({}));
+      const err = new Error(body.error || body.message || `HTTP ${res.status}`);
+      err.status = res.status;
+      err.code = body.code;
+      err.details = body.details;
+      throw err;
     }
     return res.json();
   },

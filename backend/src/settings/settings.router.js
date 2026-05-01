@@ -97,7 +97,7 @@ function createSettingsRouter(settingsService, gramJsService, ssoMiddleware) {
 
   // POST /settings/:locationId/phone/send-code
   router.post('/:locationId/phone/send-code', phoneAuthLimiter, async (req, res) => {
-    const { phoneNumber } = req.body;
+    const { phoneNumber, confirmTransfer } = req.body;
     if (!phoneNumber || typeof phoneNumber !== 'string') {
       return res.status(400).json({ error: 'phoneNumber is required and must be a string' });
     }
@@ -110,10 +110,18 @@ function createSettingsRouter(settingsService, gramJsService, ssoMiddleware) {
     }
 
     try {
-      const result = await gramJsService.sendCode(req.params.locationId, phoneNumber.trim());
+      const result = await gramJsService.sendCode(
+        req.params.locationId,
+        phoneNumber.trim(),
+        { confirmTransfer: !!confirmTransfer },
+      );
       res.json({ success: true, data: result });
     } catch (error) {
-      res.status(error.statusCode || 500).json({ error: error.message });
+      const status = error.statusCode || 500;
+      const body = { error: error.message };
+      if (error.code) body.code = error.code;
+      if (error.details) body.details = error.details;
+      res.status(status).json(body);
     }
   });
 

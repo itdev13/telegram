@@ -8,6 +8,15 @@ export default function PhoneSetupCard({ user, ssoPayload, onConnected, onBack }
   const [twoFaPassword, setTwoFaPassword] = useState('');
   const [step, setStep] = useState('input'); // input | code | 2fa | connecting
   const [errorMsg, setErrorMsg] = useState('');
+  const [transferConflict, setTransferConflict] = useState(null); // { fromLocationId, displayName, telegramUsername, phoneNumber }
+  const [transferring, setTransferring] = useState(false);
+
+  const sendCodeRequest = async ({ confirmTransfer = false } = {}) => {
+    return api.call('POST', `/settings/${user.locationId}/phone/send-code`, ssoPayload, {
+      phoneNumber: phoneNumber.trim(),
+      ...(confirmTransfer ? { confirmTransfer: true } : {}),
+    });
+  };
 
   const handleSendCode = async () => {
     if (!phoneNumber.trim() || !/^\+[1-9]\d{6,14}$/.test(phoneNumber.trim())) {
@@ -17,14 +26,39 @@ export default function PhoneSetupCard({ user, ssoPayload, onConnected, onBack }
     setErrorMsg('');
     setStep('connecting');
     try {
-      await api.call('POST', `/settings/${user.locationId}/phone/send-code`, ssoPayload, {
-        phoneNumber: phoneNumber.trim(),
-      });
+      await sendCodeRequest();
       setStep('code');
     } catch (err) {
+      // Conflict — same Telegram phone is connected to a different sub-account
+      if (err.code === 'PHONE_ALREADY_CONNECTED' && err.details?.requiresTransfer) {
+        setTransferConflict(err.details);
+        setStep('input');
+        return;
+      }
       setErrorMsg(err.message || 'Failed to send code');
       setStep('input');
     }
+  };
+
+  const handleConfirmTransfer = async () => {
+    setTransferring(true);
+    setErrorMsg('');
+    try {
+      await sendCodeRequest({ confirmTransfer: true });
+      setTransferConflict(null);
+      setStep('code');
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to send code');
+      setTransferConflict(null);
+      setStep('input');
+    } finally {
+      setTransferring(false);
+    }
+  };
+
+  const handleCancelTransfer = () => {
+    setTransferConflict(null);
+    setStep('input');
   };
 
   const handleVerifyCode = async () => {
@@ -148,6 +182,47 @@ export default function PhoneSetupCard({ user, ssoPayload, onConnected, onBack }
         <div className="flex flex-col items-center justify-center py-12 gap-4">
           <Loader />
           <p className="text-sm font-medium text-gray-700">Connecting...</p>
+        </div>
+      )}
+
+      {transferConflict && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <AlertCircle />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">Number already in use</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  <strong>{transferConflict.phoneNumber}</strong>
+                  {transferConflict.displayName && (
+                    <> ({transferConflict.displayName}{transferConflict.telegramUsername ? ` · @${transferConflict.telegramUsername}` : ''})</>
+                  )}
+                  {' '}is currently connected to another sub-account.
+                </p>
+              </div>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900 mb-5">
+              If you continue, the connection on the other sub-account will be removed and this number will be moved here. The other sub-account will fall back to bot-only.
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={handleCancelTransfer}
+                disabled={transferring}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmTransfer}
+                disabled={transferring}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-telegram hover:bg-telegram-dark disabled:opacity-50"
+              >
+                {transferring ? 'Moving...' : 'Move it here'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

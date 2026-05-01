@@ -7,6 +7,9 @@ const PhoneAuthSessionSchema = new mongoose.Schema(
     phoneCodeHash: { type: String, required: true },
     tempSessionString: { type: String, required: true },
     step: { type: String, required: true, enum: ['code_sent', 'awaiting_2fa'] },
+    // Set when this auth flow is intended to transfer the phone from another location.
+    // On _completeAuth we'll disconnect that location's client and clear its phoneConfig.
+    transferFromLocationId: { type: String, default: null },
     expiresAt: {
       type: Date,
       required: true,

@@ -24,8 +24,32 @@ class GramJsService {
 
   // ── Auth Flow ────────────────────────────────────────
 
-  async sendCode(locationId, phoneNumber) {
+  async sendCode(locationId, phoneNumber, { confirmTransfer = false } = {}) {
     if (this.disabled) throw new Error('Phone login is not configured');
+
+    // Conflict check: is this phone already connected to a different location?
+    // If so, require explicit user confirmation before sending the OTP. We'll
+    // disconnect the old location's client during _completeAuth.
+    const existing = await Installation.findOne({
+      locationId: { $ne: locationId },
+      'phoneConfig.phoneNumber': phoneNumber,
+      'phoneConfig.isActive': true,
+      status: 'active',
+    }).select('locationId phoneConfig.phoneNumber phoneConfig.displayName phoneConfig.telegramUsername').lean();
+
+    if (existing && !confirmTransfer) {
+      const err = new Error('This Telegram number is already connected to another sub-account.');
+      err.statusCode = 409;
+      err.code = 'PHONE_ALREADY_CONNECTED';
+      err.details = {
+        requiresTransfer: true,
+        fromLocationId: existing.locationId,
+        displayName: existing.phoneConfig?.displayName || '',
+        telegramUsername: existing.phoneConfig?.telegramUsername || '',
+        phoneNumber,
+      };
+      throw err;
+    }
 
     // Clean up any existing auth session
     await PhoneAuthSession.deleteOne({ locationId });
@@ -56,6 +80,7 @@ class GramJsService {
         phoneCodeHash: result.phoneCodeHash,
         tempSessionString: this.crypto.encrypt(tempSessionString),
         step: 'code_sent',
+        transferFromLocationId: existing ? existing.locationId : null,
       });
 
       // Destroy to free resources (session string is already saved)
@@ -182,6 +207,10 @@ class GramJsService {
   }
 
   async _completeAuth(client, locationId, phoneNumber) {
+    // Read transfer intent before we delete the auth session below.
+    const authSession = await PhoneAuthSession.findOne({ locationId }).select('transferFromLocationId').lean();
+    const transferFromLocationId = authSession?.transferFromLocationId || null;
+
     const me = await client.getMe();
     const finalSession = client.session.save();
     const encryptedSession = this.crypto.encrypt(finalSession);
@@ -189,6 +218,21 @@ class GramJsService {
     // Destroy the auth client BEFORE ConnectionManager creates a new one
     // (two clients sharing the same auth key causes AUTH_KEY_DUPLICATED)
     await client.destroy();
+
+    // Transfer: disconnect the previous location's GramJS client and clear its phoneConfig
+    // so the same Telegram account isn't running on two locations simultaneously.
+    if (transferFromLocationId && transferFromLocationId !== locationId) {
+      try {
+        await this.connectionManager.disconnect(transferFromLocationId);
+      } catch (err) {
+        console.error(`[Phone] Failed to disconnect old location ${transferFromLocationId} during transfer: ${err.message}`);
+      }
+      await Installation.updateOne(
+        { locationId: transferFromLocationId },
+        { $set: { phoneConfig: null, connectionType: 'bot' } },
+      );
+      console.log(`[Phone] Transferred number ${phoneNumber} from location ${transferFromLocationId} → ${locationId}`);
+    }
 
     // Save phone config to Installation (preserve existing bot connection)
     await Installation.findOneAndUpdate(
