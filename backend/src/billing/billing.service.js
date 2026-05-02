@@ -177,14 +177,38 @@ class BillingService {
       transaction.errorMessage = error.message;
       await transaction.save();
 
+      const ghlBody = error.ghlBody;
+      const ghlMsg = (ghlBody?.message || ghlBody?.error || error.message || '').toLowerCase();
+      let hint = '';
+      if (!meterId) {
+        hint = 'Meter ID is empty — set METER_ID_SEND_MSG_USER (or matching env var) and restart.';
+      } else if (ghlMsg.includes('does not have enough funds') || ghlMsg.includes('insufficient')) {
+        hint = 'Customer wallet has insufficient funds. Top up GHL company wallet.';
+      } else if (ghlMsg.includes('event id') || ghlMsg.includes('eventid') || ghlMsg.includes('duplicate')) {
+        hint = 'Duplicate eventId — same transaction is being charged twice (race condition).';
+      } else if (ghlMsg.includes('meter') && ghlMsg.includes('not found')) {
+        hint = 'Meter ID is invalid for this app. Check it matches the meter registered in the Marketplace app dashboard.';
+      } else if (ghlMsg.includes('app') && ghlMsg.includes('not found')) {
+        hint = 'appId is wrong — check process.env.GHL_APP_ID matches the marketplace app.';
+      } else if (error.status === 401 || error.status === 403) {
+        hint = 'Auth rejected — OAuth token may be expired or company-token has no billing scope.';
+      } else if (error.status === 402) {
+        hint = 'Payment required — GHL says the company has no payment method or wallet balance.';
+      } else {
+        hint = 'Unrecognized GHL response — inspect the body above. May be schema/validation issue.';
+      }
+
       console.error(
-        `[Billing] Charge failed for ${actionType} at location ${locationId}: ${error.message}`,
+        `[Billing] Charge failed for ${actionType} at location ${locationId}\n` +
+        `  ${error.message}\n` +
+        `  Hint: ${hint}`
       );
 
       return {
         success: false,
         transactionId: transaction._id.toString(),
         error: error.message,
+        hint,
       };
     }
   }
@@ -193,28 +217,46 @@ class BillingService {
    * POST charge to GHL marketplace billing API
    */
   async _chargeGhlWallet({ companyId, locationId, accessToken, meterId, units, unitPrice, eventId }) {
-    const res = await axios.post(
-      `${this.ghlApiBase}/marketplace/billing/charges`,
-      {
-        companyId,
-        locationId,
-        meterId,
-        units,
-        price: unitPrice,
-        appId: this.appId,
-        eventId,
-        description: `TeleSync charge_${new Date().toDateString()}`,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Version: this.ghlApiVersion,
-          'Content-Type': 'application/json',
-        },
-      },
-    );
+    const requestBody = {
+      companyId,
+      locationId,
+      meterId,
+      units,
+      price: unitPrice,
+      appId: this.appId,
+      eventId,
+      description: `TeleSync charge_${new Date().toDateString()}`,
+    };
 
-    return { chargeId: res.data?.chargeId || res.data?.id || res.data?._id };
+    try {
+      const res = await axios.post(
+        `${this.ghlApiBase}/marketplace/billing/charges`,
+        requestBody,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Version: this.ghlApiVersion,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      return { chargeId: res.data?.chargeId || res.data?.id || res.data?._id };
+    } catch (error) {
+      // axios errors have generic .message ("Request failed with status code 400") —
+      // the real reason is in error.response.data. Surface it.
+      const status = error.response?.status;
+      const ghlBody = error.response?.data;
+      const ghlMsg = ghlBody?.message || ghlBody?.error || (typeof ghlBody === 'string' ? ghlBody : '');
+
+      const enriched = new Error(
+        `GHL billing rejected: HTTP ${status || '?'} — ${ghlMsg || error.message}\n` +
+        `  Request: { companyId: ${companyId}, locationId: ${locationId}, meterId: ${meterId || '(missing)'}, units: ${units}, price: ${unitPrice}, appId: ${this.appId || '(missing)'}, eventId: ${eventId} }\n` +
+        `  Response body: ${ghlBody ? JSON.stringify(ghlBody) : '(empty)'}`
+      );
+      enriched.status = status;
+      enriched.ghlBody = ghlBody;
+      throw enriched;
+    }
   }
 
   /**
