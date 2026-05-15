@@ -41,7 +41,7 @@ export default function App() {
       <div className="max-w-[720px] mx-auto px-6 py-8 min-h-screen">
         <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
           <div className="w-12 h-12 flex items-center justify-center"><Loader /></div>
-          <p className="text-base font-medium text-gray-900">Connecting to GoHighLevel...</p>
+          <p className="text-base font-medium text-gray-900">Connecting...</p>
           <p className="text-sm text-gray-500">Verifying your session</p>
         </div>
       </div>
@@ -133,8 +133,8 @@ export default function App() {
             <div className="flex items-start gap-3">
               {[
                 { emoji: '💬', label: 'Customer sends a message on Telegram' },
-                { emoji: '⚡', label: 'TeleSync syncs it to your GHL inbox' },
-                { emoji: '👤', label: 'Your team replies from GHL' },
+                { emoji: '⚡', label: 'TeleSync syncs it to your inbox' },
+                { emoji: '👤', label: 'Your team replies from the inbox' },
                 { emoji: '✅', label: 'Customer gets the reply on Telegram' },
               ].map((item, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center text-center">
@@ -149,7 +149,7 @@ export default function App() {
           <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
             <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Workflow Automations</h3>
             <p className="text-sm text-gray-500 mb-4">
-              Build powerful automations with Telegram triggers and actions inside GHL workflows.
+              Build powerful automations with Telegram triggers and actions inside your workflows.
             </p>
             <div className="grid grid-cols-2 gap-4">
               <div>

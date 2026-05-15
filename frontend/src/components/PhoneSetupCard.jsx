@@ -29,7 +29,7 @@ export default function PhoneSetupCard({ user, ssoPayload, onConnected, onBack }
       await sendCodeRequest();
       setStep('code');
     } catch (err) {
-      // Conflict — same Telegram phone is connected to a different sub-account
+      // Conflict — same Telegram phone is connected to a different account
       if (err.code === 'PHONE_ALREADY_CONNECTED' && err.details?.requiresTransfer) {
         setTransferConflict(err.details);
         setStep('input');
@@ -199,12 +199,12 @@ export default function PhoneSetupCard({ user, ssoPayload, onConnected, onBack }
                   {transferConflict.displayName && (
                     <> ({transferConflict.displayName}{transferConflict.telegramUsername ? ` · @${transferConflict.telegramUsername}` : ''})</>
                   )}
-                  {' '}is currently connected to another sub-account.
+                  {' '}is currently connected to another account.
                 </p>
               </div>
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900 mb-5">
-              If you continue, the connection on the other sub-account will be removed and this number will be moved here. The other sub-account will fall back to bot-only.
+              If you continue, the connection on the other account will be removed and this number will be moved here. The other account will fall back to bot-only.
             </div>
             <div className="flex gap-2 justify-end">
               <button

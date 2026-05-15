@@ -53,7 +53,7 @@ export default function BotConnectedCard({ botInfo, user, ssoPayload, onDisconne
         <div className="flex items-start gap-2 p-3 bg-sky-50 rounded-lg text-sm text-sky-800 mb-4">
           <TelegramIcon size={16} className="mt-0.5 shrink-0" />
           <span>
-            Messages sent to <strong>@{botInfo.username}</strong> on Telegram will appear in your GHL Conversations tab.
+            Messages sent to <strong>@{botInfo.username}</strong> on Telegram will appear in your Conversations tab.
           </span>
         </div>
 
@@ -86,7 +86,7 @@ export default function BotConnectedCard({ botInfo, user, ssoPayload, onDisconne
       {showConfirm && (
         <DisconnectModal
           title="Disconnect Telegram Bot?"
-          message="This will stop syncing messages between Telegram and GoHighLevel for this bot. Your existing conversation history will be preserved."
+          message="This will stop syncing messages from Telegram for this bot. Your existing conversation history will be preserved."
           onConfirm={handleDisconnect}
           onCancel={() => setShowConfirm(false)}
         />

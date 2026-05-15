@@ -17,7 +17,7 @@ export default function useSso() {
       if (!res.ok) throw new Error('SSO decryption failed');
       const data = await res.json();
       if (!data.success || !data.data.locationId) {
-        throw new Error('Please open this page from a sub-account');
+        throw new Error('Please open this page from an account');
       }
       setUser(data.data);
       setSsoPayload(encryptedPayload);
@@ -57,7 +57,7 @@ export default function useSso() {
 
     timeout = setTimeout(() => {
       setLoading(false);
-      setError('Could not connect to GoHighLevel. Please refresh the page.');
+      setError('Could not connect. Please refresh the page.');
     }, 10000);
 
     return () => {

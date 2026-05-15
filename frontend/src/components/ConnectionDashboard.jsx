@@ -129,7 +129,7 @@ export default function ConnectionDashboard({
               <div>
                 <div className="text-sm font-semibold text-gray-900 mb-1">Workflow Automations Available</div>
                 <p className="text-xs text-gray-500 leading-relaxed">
-                  Use <strong>6 triggers</strong> and <strong>11 actions</strong> in your GHL workflows — auto-reply to messages, send to groups, react with emojis, and more.
+                  Use <strong>6 triggers</strong> and <strong>11 actions</strong> in your workflows — auto-reply to messages, send to groups, react with emojis, and more.
                   <span className="text-sky-600 font-medium ml-1">View details →</span>
                 </p>
               </div>

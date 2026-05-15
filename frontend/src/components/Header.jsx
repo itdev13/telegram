@@ -19,7 +19,7 @@ export default function Header({ botConnected, phoneConnected }) {
           </div>
           <div>
             <h1 className="text-[22px] font-bold text-gray-900 tracking-tight leading-tight">TeleSync</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Telegram integration for GoHighLevel</p>
+            <p className="text-sm text-gray-500 mt-0.5">Two-way Telegram messaging for your inbox</p>
           </div>
         </div>
         {anyConnected && (

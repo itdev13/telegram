@@ -48,7 +48,7 @@ export default function PhoneConnectedCard({ phoneInfo, user, ssoPayload, onDisc
 
         <div className="flex items-start gap-2 p-3 bg-sky-50 rounded-lg text-sm text-sky-800 mb-4">
           <PhoneIcon size={16} className="mt-0.5 shrink-0 text-sky-600" />
-          <span>Private messages sent to your Telegram account will appear in your GHL Conversations tab.</span>
+          <span>Private messages sent to your Telegram account will appear in your Conversations tab.</span>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -72,7 +72,7 @@ export default function PhoneConnectedCard({ phoneInfo, user, ssoPayload, onDisc
       {showConfirm && (
         <DisconnectModal
           title="Disconnect Phone Number?"
-          message="This will stop syncing messages between your Telegram account and GoHighLevel for this location."
+          message="This will stop syncing messages from your Telegram account to this account."
           onConfirm={handleDisconnect}
           onCancel={() => setShowConfirm(false)}
         />

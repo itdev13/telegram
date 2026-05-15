@@ -2,8 +2,8 @@ const PRICING_DATA = [
   {
     category: 'Messaging',
     items: [
-      { action: 'Inbound message (Telegram → GHL)', price: 0.01, unit: 'per message' },
-      { action: 'Outbound message (GHL → Telegram)', price: 0.01, unit: 'per message' },
+      { action: 'Inbound message (Telegram → Inbox)', price: 0.01, unit: 'per message' },
+      { action: 'Outbound message (Inbox → Telegram)', price: 0.01, unit: 'per message' },
     ],
   },
   {
@@ -43,11 +43,11 @@ export default function PricingTab() {
           </div>
           <div className="flex items-start gap-2">
             <span className="mt-0.5 w-5 h-5 rounded-full bg-sky-100 text-sky-700 text-[10px] font-bold flex items-center justify-center shrink-0">2</span>
-            <span>Charges are deducted from your <strong>GHL Marketplace Wallet</strong> in real-time (pay-as-you-go).</span>
+            <span>Charges are deducted from your <strong>in-app wallet</strong> in real-time (pay-as-you-go).</span>
           </div>
           <div className="flex items-start gap-2">
             <span className="mt-0.5 w-5 h-5 rounded-full bg-sky-100 text-sky-700 text-[10px] font-bold flex items-center justify-center shrink-0">3</span>
-            <span>No monthly subscription — you only pay for what you use. Top up your wallet anytime from the GHL Marketplace.</span>
+            <span>No monthly subscription — you only pay for what you use. Top up your wallet anytime from the app store.</span>
           </div>
         </div>
       </div>
