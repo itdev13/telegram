@@ -69,18 +69,36 @@ function renderInstallSuccessPage({ alreadyCompleted = false } = {}) {
     .tip p { color: #92400E; font-size: 13px; font-weight: 600; margin: 0; }
     .more-info {
       margin-top: 24px;
-      padding-top: 20px;
-      border-top: 1px solid #E5E7EB;
+      padding: 20px;
+      background: #F9FAFB;
+      border: 1px solid #E5E7EB;
+      border-radius: 10px;
       text-align: center;
     }
+    .more-info .label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #6B7280;
+      margin-bottom: 10px;
+    }
     .more-info a {
-      color: #2563EB;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      background: #2563EB;
+      color: #fff !important;
       text-decoration: none;
       font-size: 14px;
       font-weight: 600;
+      border-radius: 8px;
+      transition: background 0.15s ease;
     }
-    .more-info a:hover { text-decoration: underline; }
-    .more-info p { font-size: 12px; color: #6B7280; margin: 6px 0 0; }
+    .more-info a:hover { background: #1D4ED8; }
+    .more-info .caption { font-size: 12px; color: #6B7280; margin: 10px 0 0; }
     .close-note { font-size: 13px; color: #9CA3AF; margin-top: 18px; }
   </style>
 </head>
@@ -102,10 +120,12 @@ function renderInstallSuccessPage({ alreadyCompleted = false } = {}) {
     </div>
 
     <div class="more-info">
+      <span class="label">Need help getting started?</span>
       <a href="https://telegram.vaultsuite.store/" target="_blank" rel="noopener noreferrer">
-        Visit telegram.vaultsuite.store for setup guides &amp; support →
+        <span>Open setup guide</span>
+        <span aria-hidden="true">→</span>
       </a>
-      <p>Documentation, FAQs, and troubleshooting</p>
+      <p class="caption">telegram.vaultsuite.store · docs, FAQs &amp; troubleshooting</p>
     </div>
 
     <p class="close-note">You can close this window once you've reviewed the access steps above.</p>
