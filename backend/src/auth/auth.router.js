@@ -1,5 +1,183 @@
 const { Router } = require('express');
 
+function renderInstallSuccessPage({ alreadyCompleted = false } = {}) {
+  const heading = alreadyCompleted
+    ? 'Authorization Already Completed!'
+    : 'Connected Successfully!';
+  const subline = alreadyCompleted
+    ? 'Your account is already connected'
+    : 'Successfully connected to your account';
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Success - Vaultsuite</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .container {
+      text-align: center;
+      background: #fff;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      max-width: 540px;
+      margin: 20px;
+    }
+    .icon { font-size: 64px; margin-bottom: 16px; }
+    h1 { color: #10B981; margin: 0 0 12px 0; font-size: 28px; }
+    p { color: #6B7280; margin: 10px 0; font-size: 15px; line-height: 1.6; }
+    .access-box {
+      background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
+      padding: 22px;
+      border-radius: 10px;
+      margin: 22px 0;
+      border: 2px solid #2563EB;
+      text-align: left;
+    }
+    .access-box h3 { color: #1E40AF; font-size: 16px; margin: 0 0 12px 0; }
+    .step {
+      color: #374151;
+      font-size: 14px;
+      margin: 8px 0;
+      padding-left: 22px;
+      position: relative;
+    }
+    .step:before {
+      content: "→";
+      position: absolute;
+      left: 0;
+      color: #2563EB;
+      font-weight: bold;
+    }
+    .tip {
+      background: #FEF3C7;
+      padding: 14px;
+      border-radius: 8px;
+      margin-top: 18px;
+      border-left: 4px solid #F59E0B;
+      text-align: left;
+    }
+    .tip p { color: #92400E; font-size: 13px; font-weight: 600; margin: 0; }
+    .more-info {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid #E5E7EB;
+      text-align: center;
+    }
+    .more-info a {
+      color: #2563EB;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .more-info a:hover { text-decoration: underline; }
+    .more-info p { font-size: 12px; color: #6B7280; margin: 6px 0 0; }
+    .close-note { font-size: 13px; color: #9CA3AF; margin-top: 18px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">✅</div>
+    <h1>${heading}</h1>
+    <p>${subline}</p>
+
+    <div class="access-box">
+      <h3>How to access the app</h3>
+      <div class="step">Open your sub-account dashboard</div>
+      <div class="step">Find the app in the left navigation menu</div>
+      <div class="step">Click to launch and start using it</div>
+    </div>
+
+    <div class="tip">
+      <p>Installation complete — you can safely close this window.</p>
+    </div>
+
+    <div class="more-info">
+      <a href="https://telegram.vaultsuite.store/" target="_blank" rel="noopener noreferrer">
+        Visit telegram.vaultsuite.store for setup guides &amp; support →
+      </a>
+      <p>Documentation, FAQs, and troubleshooting</p>
+    </div>
+
+    <p class="close-note">You can close this window once you've reviewed the access steps above.</p>
+  </div>
+</body>
+</html>`;
+}
+
+function renderInstallErrorPage(message) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Error - Vaultsuite</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .container {
+      text-align: center;
+      background: #fff;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      max-width: 500px;
+      margin: 20px;
+    }
+    .icon { font-size: 56px; margin-bottom: 16px; }
+    h1 { color: #EF4444; margin: 0 0 12px 0; }
+    p { color: #6B7280; margin: 10px 0; }
+    .error-detail {
+      background: #FEE2E2;
+      padding: 14px;
+      border-radius: 8px;
+      margin: 18px 0;
+      color: #991B1B;
+      font-size: 13px;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">⚠️</div>
+    <h1>Connection Failed</h1>
+    <p>We encountered an error while completing the installation. Please try installing again.</p>
+    <div class="error-detail">${escapeHtml(message || 'Unknown error')}</div>
+    <p style="margin-top: 20px;">
+      Need help? Visit
+      <a href="https://telegram.vaultsuite.store/" target="_blank" rel="noopener noreferrer" style="color: #2563EB; font-weight: 600;">telegram.vaultsuite.store</a>
+      for setup guides and support.
+    </p>
+  </div>
+</body>
+</html>`;
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function createAuthRouter(authService) {
   const router = Router();
 
@@ -51,12 +229,19 @@ function createAuthRouter(authService) {
   router.get('/callback', async (req, res) => {
     try {
       await authService.handleOAuthCallback(req.query.code, req.query.state);
-      res.redirect(`${process.env.FRONTEND_URL}/setup-complete`);
+      res.send(renderInstallSuccessPage());
     } catch (error) {
       console.error('OAuth callback failed', error);
-      res.status(500).json({
-        error: 'OAuth authorization failed. Please try installing again.',
-      });
+
+      const isCodeReused =
+        error.response?.data?.error === 'invalid_grant' &&
+        error.response?.data?.error_description?.includes('authorization code');
+
+      if (isCodeReused) {
+        return res.send(renderInstallSuccessPage({ alreadyCompleted: true }));
+      }
+
+      res.status(500).send(renderInstallErrorPage(error.message));
     }
   });
 
