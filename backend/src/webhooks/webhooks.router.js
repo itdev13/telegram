@@ -468,19 +468,28 @@ async function handleAppUninstall(
     const installation = await Installation.findOne({ locationId });
 
     if (installation) {
-      // Archive tokens
-      await ArchivedToken.create({
-        companyId: installation.companyId,
-        locationId,
-        accessToken: installation.accessToken,
-        refreshToken: installation.refreshToken,
-        originalCreatedAt: installation.createdAt,
-        originalExpiresAt: installation.tokenExpiresAt,
-        deletedAt: new Date(),
-        deletionReason: 'app_uninstall',
-        uninstallWebhookData: payload,
-        autoDeleteAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-      });
+      // Archive tokens — only when they're still present. A duplicate/retried UNINSTALL webhook
+      // (GHL sends these) finds the already-soft-deleted installation with empty tokens; archiving
+      // empty strings fails the schema's `required` validation and would abort the rest of cleanup.
+      // Archiving is best-effort and must never block the soft-delete + webhook teardown below.
+      if (installation.accessToken && installation.refreshToken) {
+        try {
+          await ArchivedToken.create({
+            companyId: installation.companyId,
+            locationId,
+            accessToken: installation.accessToken,
+            refreshToken: installation.refreshToken,
+            originalCreatedAt: installation.createdAt,
+            originalExpiresAt: installation.tokenExpiresAt,
+            deletedAt: new Date(),
+            deletionReason: 'app_uninstall',
+            uninstallWebhookData: payload,
+            autoDeleteAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+          });
+        } catch (archiveErr) {
+          console.warn(`Token archive failed for ${locationId} (continuing cleanup):`, archiveErr.message);
+        }
+      }
 
       // Soft-delete installation
       await Installation.updateOne(
