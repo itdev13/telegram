@@ -1,4 +1,4 @@
-# TeleSync — Two-Way Telegram Messaging for GoHighLevel
+# Telegram Messaging Connector (TeleSync) — Two-Way Telegram Messaging for GoHighLevel
 
 A GHL Marketplace App that bridges Telegram Bot messaging with GoHighLevel's Conversations interface using the Custom Conversation Provider module.
 
