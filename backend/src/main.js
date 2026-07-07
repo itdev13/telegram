@@ -53,6 +53,7 @@ async function bootstrap() {
     contactMappingService,
     telegramService,
     workflowsService,
+    billingService,
   );
 
   // Create SSO middleware

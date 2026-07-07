@@ -7,13 +7,14 @@ const PendingUpdate = require('../schemas/pending-update.schema');
 const { MessageLog, MessageDirection, MessageStatus } = require('../schemas/message-log.schema');
 
 class GramJsService {
-  constructor(connectionManager, cryptoService, ghlService, contactMappingService, telegramService, workflowsService) {
+  constructor(connectionManager, cryptoService, ghlService, contactMappingService, telegramService, workflowsService, billingService) {
     this.connectionManager = connectionManager;
     this.crypto = cryptoService;
     this.ghlService = ghlService;
     this.contactMapping = contactMappingService;
     this.telegramService = telegramService;
     this.workflows = workflowsService;
+    this.billing = billingService;
 
     const apiId = parseInt(process.env.TELEGRAM_API_ID, 10);
     const apiHash = process.env.TELEGRAM_API_HASH;
@@ -397,6 +398,21 @@ class GramJsService {
       console.log(
         `Phone inbound synced: chat ${chatIdNum} → GHL message ${result.messageId} (location ${locationId})`,
       );
+
+      // Step 11.5: Charge for inbound message (fire-and-forget) — mirrors the bot path
+      if (this.billing) {
+        this.billing
+          .chargeForAction({
+            locationId,
+            companyId: installation.companyId,
+            actionType: 'telegram_inbound',
+          })
+          .then((r) => {
+            if (r.success) console.log(`[Billing] Phone inbound charge OK: ${r.chargeId}`);
+            else console.warn(`[Billing] Phone inbound charge failed: ${r.error}`);
+          })
+          .catch((err) => console.error(`[Billing] Phone inbound charge error: ${err.message}`));
+      }
 
       // Step 12: Fire workflow triggers (fire-and-forget)
       if (this.workflows) {
