@@ -58,7 +58,7 @@ class SettingsService {
     };
 
     if (installation) {
-      await Installation.updateOne({ locationId }, { telegramConfig });
+      await Installation.updateOne({ locationId }, { telegramConfig, connectionType: 'bot' });
     } else {
       const setOnInsert = {
         locationId,
@@ -96,7 +96,7 @@ class SettingsService {
 
       await Installation.findOneAndUpdate(
         { locationId },
-        { telegramConfig, $setOnInsert: setOnInsert },
+        { telegramConfig, connectionType: 'bot', $setOnInsert: setOnInsert },
         { upsert: true },
       );
     }
@@ -126,7 +126,12 @@ class SettingsService {
     const botToken = this.crypto.decrypt(config.botToken);
     await this.telegram.deleteWebhook(botToken);
 
-    await Installation.updateOne({ locationId }, { telegramConfig: null });
+    // If a phone connection is still active, fall back to 'phone'; otherwise 'none'.
+    const nextType = installation?.phoneConfig?.isActive ? 'phone' : 'none';
+    await Installation.updateOne(
+      { locationId },
+      { telegramConfig: null, connectionType: nextType },
+    );
 
     console.log(`Bot disconnected for location: ${locationId}`);
 

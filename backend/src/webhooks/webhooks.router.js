@@ -531,8 +531,9 @@ async function handleAppUninstall(
         },
       );
 
-      // Clean up phone connection if active
-      if (installation.connectionType === 'phone') {
+      // Clean up phone connection if active. Use phoneConfig (the true source of truth)
+      // rather than connectionType, so a both-connected location is still cleaned up.
+      if (installation.phoneConfig?.isActive) {
         try {
           await connectionManager.disconnect(locationId);
         } catch (err) {

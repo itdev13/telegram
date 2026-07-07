@@ -48,7 +48,7 @@ function createSettingsRouter(settingsService, gramJsService, ssoMiddleware) {
             }
           : null,
         // backward compat
-        connectionType: installation?.connectionType || 'bot',
+        connectionType: installation?.connectionType || 'none',
         connected: botConnected || phoneConnected,
       });
     } catch (error) {
@@ -163,10 +163,13 @@ function createSettingsRouter(settingsService, gramJsService, ssoMiddleware) {
       // Destroy GramJS client
       await gramJsService.destroyClient(locationId);
 
-      // Clear phone config only (preserve bot connection if exists)
+      // Clear phone config only (preserve bot connection if exists). Fall back to
+      // 'bot' if a bot is still connected, otherwise 'none'.
+      const inst = await Installation.findOne({ locationId }).select('telegramConfig').lean();
+      const nextType = inst?.telegramConfig ? 'bot' : 'none';
       await Installation.updateOne(
         { locationId },
-        { phoneConfig: null },
+        { phoneConfig: null, connectionType: nextType },
       );
 
       // Clean up any pending auth sessions

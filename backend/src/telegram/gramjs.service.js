@@ -230,9 +230,14 @@ class GramJsService {
       } catch (err) {
         console.error(`[Phone] Failed to disconnect old location ${transferFromLocationId} during transfer: ${err.message}`);
       }
+      // Fall back to 'bot' only if that location actually has a bot connected; else 'none'.
+      const oldInstall = await Installation.findOne({ locationId: transferFromLocationId })
+        .select('telegramConfig')
+        .lean();
+      const oldNextType = oldInstall?.telegramConfig ? 'bot' : 'none';
       await Installation.updateOne(
         { locationId: transferFromLocationId },
-        { $set: { phoneConfig: null, connectionType: 'bot' } },
+        { $set: { phoneConfig: null, connectionType: oldNextType } },
       );
       console.log(`[Phone] Transferred number ${phoneNumber} from location ${transferFromLocationId} → ${locationId}`);
     }

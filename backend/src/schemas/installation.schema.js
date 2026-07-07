@@ -40,7 +40,10 @@ const InstallationSchema = new mongoose.Schema(
     uninstalledAt: { type: Date },
     referralCode: { type: String },
     conversationProviderId: { type: String, default: '' },
-    connectionType: { type: String, enum: ['bot', 'phone'], default: 'bot' },
+    // 'none' until a bot or phone is actually connected. Note: both can be active
+    // at once — telegramConfig / phoneConfig are the true source of truth. This field
+    // reflects the most recently connected transport and is kept for backward compat.
+    connectionType: { type: String, enum: ['none', 'bot', 'phone'], default: 'none' },
     telegramConfig: { type: TelegramConfigSchema, default: null },
     phoneConfig: { type: PhoneConfigSchema, default: null },
     // Wallet gating: when a charge fails for insufficient funds we suspend syncing
