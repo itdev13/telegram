@@ -636,6 +636,22 @@ class GramJsService {
           continue;
         }
 
+        // Wallet gate — same as the live path: don't sync (or create a contact) for a
+        // suspended location. Left as 'skipped' so it isn't retried while suspended.
+        if (this.billing) {
+          const gate = await this.billing.isSyncAllowed(update.locationId, installation.companyId);
+          if (!gate.allowed) {
+            console.warn(
+              `[Billing] Skipping recovered inbound for ${update.locationId} — wallet ${gate.status} (${gate.scope || 'unknown'})`,
+            );
+            await PendingUpdate.updateOne(
+              { _id: update._id },
+              { status: 'skipped', processedAt: new Date() },
+            );
+            continue;
+          }
+        }
+
         // Re-forward to GHL using stored data (sender info preserved in rawUpdate)
         const senderInfo = parsed.sender || {
           first_name: 'Telegram User',
@@ -649,7 +665,7 @@ class GramJsService {
           'phone',
         );
 
-        await this.ghlService.addInboundMessage(update.locationId, {
+        const recovered = await this.ghlService.addInboundMessage(update.locationId, {
           conversationProviderId: installation.conversationProviderId,
           contactId: ghlContactId,
           message: parsed.text || undefined,
@@ -660,6 +676,17 @@ class GramJsService {
           { _id: update._id },
           { status: 'completed', processedAt: new Date() },
         );
+
+        // Charge for the recovered inbound message (fire-and-forget), same as live path.
+        if (this.billing && recovered) {
+          this.billing
+            .chargeForAction({
+              locationId: update.locationId,
+              companyId: installation.companyId,
+              actionType: 'telegram_inbound',
+            })
+            .catch((err) => console.error(`[Billing] Recovered inbound charge error: ${err.message}`));
+        }
       } catch (error) {
         console.error(`Failed to recover update ${update._id}:`, error.message);
         const current = await PendingUpdate.findById(update._id);

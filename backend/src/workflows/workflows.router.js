@@ -17,6 +17,24 @@ function createWorkflowsRouter(workflowsService, billingService) {
   }
 
   /**
+   * Wallet gate for paid workflow actions. Throws (→ actionError) if the location
+   * is suspended for insufficient funds, so we don't send the message before the
+   * charge fails. No-op if billing is disabled or the location isn't suspended.
+   */
+  async function assertWalletOk(payload) {
+    if (!billingService) return;
+    const locationId = payload.extras?.locationId;
+    const companyId = payload.extras?.companyId;
+    if (!locationId) return;
+    const gate = await billingService.isSyncAllowed(locationId, companyId);
+    if (!gate.allowed) {
+      const err = new Error(gate.message || 'Wallet has insufficient funds — recharge to resume messaging.');
+      err.walletSuspended = true;
+      throw err;
+    }
+  }
+
+  /**
    * Fire-and-forget billing charge for workflow actions.
    * Never blocks the action response.
    */
@@ -73,6 +91,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
     const payload = req.body;
     logPayload('send-message', payload);
     try {
+      await assertWalletOk(payload);
       const result = await workflowsService.executeSendMessage(payload);
       chargeAction('send_message_user', payload);
       res.json({ success: true, data: result });
@@ -90,6 +109,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
     const payload = req.body;
     logPayload('send-buttons', payload);
     try {
+      await assertWalletOk(payload);
       const result = await workflowsService.executeSendButtons(payload);
       chargeAction('send_message_user', payload);
       res.json({ success: true, data: result });
@@ -103,6 +123,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
     const payload = req.body;
     logPayload('forward-message', payload);
     try {
+      await assertWalletOk(payload);
       const result = await workflowsService.executeForwardMessage(payload);
       chargeAction('send_message_user', payload);
       res.json({ success: true, data: result });
@@ -144,6 +165,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
     const payload = req.body;
     logPayload('send-phone-message', payload);
     try {
+      await assertWalletOk(payload);
       const result = await workflowsService.executeSendPhoneMessage(payload);
       chargeAction('send_message_user', payload);
       res.json({ success: true, data: result });
@@ -157,6 +179,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
     const payload = req.body;
     logPayload('send-to-group', payload);
     try {
+      await assertWalletOk(payload);
       const result = await workflowsService.executeSendToGroup(payload);
       // Charge file rate if a file URL is present, otherwise message rate
       const hasFile = !!(payload.inputData?.fileUrl || payload.inputData?.file_url);
@@ -172,6 +195,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
     const payload = req.body;
     logPayload('send-reaction', payload);
     try {
+      await assertWalletOk(payload);
       const result = await workflowsService.executeSendReaction(payload);
       chargeAction('send_reaction', payload);
       res.json({ success: true, data: result });
@@ -185,6 +209,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
     const payload = req.body;
     logPayload('generate-invite-link', payload);
     try {
+      await assertWalletOk(payload);
       const result = await workflowsService.executeGenerateInviteLink(payload);
       chargeAction('generate_invite_link', payload);
       res.json({ success: true, data: result });
@@ -210,6 +235,7 @@ function createWorkflowsRouter(workflowsService, billingService) {
     const payload = req.body;
     logPayload('edit-group-permissions', payload);
     try {
+      await assertWalletOk(payload);
       const result = await workflowsService.executeEditGroupPermissions(payload);
       chargeAction('edit_group_permissions', payload);
       res.json({ success: true, data: result });
