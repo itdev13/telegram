@@ -37,6 +37,14 @@ class BillingService {
     if (!this.ghlApiBase) throw new Error('GHL_API_BASE is required');
     if (!this.ghlApiVersion) throw new Error('GHL_API_VERSION is required');
     if (!this.appId) throw new Error('GHL_APP_ID is required');
+
+    // Short-lived cache of live hasFunds results, keyed by companyId, so the gate
+    // can do a synchronous funds check on every message without hammering GHL's
+    // has-funds API (which would add latency + burn rate limit). TTL kept small so
+    // a drained wallet is caught within ~1 check window.
+    this._fundsCache = new Map(); // companyId -> { hasFunds, at }
+    this._fundsTtlMs = Number(process.env.HAS_FUNDS_CACHE_TTL_MS) || 60_000;
+
     console.log('[Billing] Service initialized — internal testing company IDs loaded from AppConfig (DB)');
   }
 
@@ -288,8 +296,20 @@ class BillingService {
         },
       );
       console.warn(`[Billing] Location ${locationId} suspended — wallet insufficient (${walletScope || 'unknown'})`);
+      // Drop any cached "has funds" so the gate reflects the suspension immediately.
+      await this._invalidateFundsForLocation(locationId);
     } catch (err) {
       console.error(`[Billing] Failed to set wallet suspension for ${locationId} | ${err.message}`);
+    }
+  }
+
+  /** Invalidate cached funds for the company owning this location (best-effort). */
+  async _invalidateFundsForLocation(locationId) {
+    try {
+      const inst = await Installation.findOne({ locationId }).select('companyId').lean();
+      this._invalidateFundsCache(inst?.companyId);
+    } catch {
+      // Non-critical.
     }
   }
 
@@ -302,6 +322,8 @@ class BillingService {
         { locationId, walletStatus: 'insufficient' },
         { walletStatus: 'ok', walletScope: null, walletMessage: '', walletUpdatedAt: new Date() },
       );
+      // Drop any cached "no funds" so the next message re-checks live.
+      await this._invalidateFundsForLocation(locationId);
       return result.modifiedCount > 0;
     } catch {
       // Non-critical.
@@ -318,10 +340,14 @@ class BillingService {
     if (companyId && (await this.isInternalTesting(companyId))) {
       return { allowed: true, status: 'ok' };
     }
+
+    // Step 1: fast path — persisted suspension (no API call).
+    let effectiveCompanyId = companyId;
     try {
       const inst = await Installation.findOne({ locationId })
-        .select('walletStatus walletScope walletMessage')
+        .select('companyId walletStatus walletScope walletMessage')
         .lean();
+      effectiveCompanyId = companyId || inst?.companyId;
       if (inst?.walletStatus === 'insufficient') {
         return {
           allowed: false,
@@ -333,7 +359,24 @@ class BillingService {
     } catch (err) {
       // On lookup failure, fail open (don't block delivery on our own DB error).
       console.error(`[Billing] isSyncAllowed lookup failed for ${locationId} | ${err.message}`);
+      return { allowed: true, status: 'ok' };
     }
+
+    // Step 2: live (cached) funds check — closes the one-message-slip where a
+    // wallet drains but walletStatus hasn't flipped yet. null = undetermined → allow.
+    const hasFunds = await this._hasFundsCached(effectiveCompanyId, locationId);
+    if (hasFunds === false) {
+      // Persist so the UI banner shows and later checks are instant. Scope unknown
+      // from has-funds (boolean only) — a failed charge later fills in agency/location.
+      await this._suspendWallet(locationId, null, 'Wallet has insufficient funds');
+      return {
+        allowed: false,
+        status: 'insufficient',
+        scope: null,
+        message: 'Wallet has insufficient funds',
+      };
+    }
+
     return { allowed: true, status: 'ok' };
   }
 
@@ -391,6 +434,37 @@ class BillingService {
       console.error(`Failed to check funds for company ${companyId}`, error.message);
       return false;
     }
+  }
+
+  /**
+   * Cached live funds check for the sync gate. Returns null if it couldn't be
+   * determined (no companyId / token fetch failed) so the caller can fail open.
+   * Positive AND negative results are cached briefly per company.
+   */
+  async _hasFundsCached(companyId, locationId) {
+    if (!companyId) return null;
+
+    const cached = this._fundsCache.get(companyId);
+    if (cached && Date.now() - cached.at < this._fundsTtlMs) {
+      return cached.hasFunds;
+    }
+
+    let accessToken;
+    try {
+      accessToken = await this.authService.getAccessToken(locationId);
+    } catch (err) {
+      console.error(`[Billing] hasFunds token fetch failed for ${locationId} | ${err.message}`);
+      return null; // fail open — don't block on our own auth error
+    }
+
+    const hasFunds = await this.hasFunds(companyId, accessToken);
+    this._fundsCache.set(companyId, { hasFunds, at: Date.now() });
+    return hasFunds;
+  }
+
+  /** Invalidate the cached funds result for a company (e.g. after a charge). */
+  _invalidateFundsCache(companyId) {
+    if (companyId) this._fundsCache.delete(companyId);
   }
 
   async fetchMeterPrices(accessToken, locationId) {
