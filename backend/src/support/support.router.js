@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
 const fs = require('fs');
+const { formatError } = require('../utils/format-error');
 
 // Configure multer for support attachments
 const upload = multer({
@@ -135,7 +136,7 @@ function createSupportRouter(ssoMiddleware) {
         message: 'Support ticket submitted successfully. We will get back to you soon!',
       });
     } catch (error) {
-      console.error('Support ticket error:', error);
+      console.error(`Support ticket error | ${formatError(error)}`);
 
       // Clean up files on error
       if (req.files) {

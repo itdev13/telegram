@@ -3,6 +3,7 @@ const Installation = require('../schemas/installation.schema');
 const CompanyToken = require('../schemas/company-token.schema');
 const CompanyLocation = require('../schemas/company-location.schema');
 const Referral = require('../schemas/referral.schema');
+const { formatError } = require('../utils/format-error');
 
 class AuthService {
   constructor(cryptoService) {
@@ -109,7 +110,7 @@ class AuthService {
 
         console.log(`Stored ${locationIds.length} locations for company: ${companyId}`);
       } catch (error) {
-        console.error(`Failed to fetch company locations for ${companyId}`, error);
+        console.error(`Failed to fetch company locations for ${companyId} | ${formatError(error)}`);
       }
 
       // Track referral if present
@@ -370,7 +371,7 @@ class AuthService {
         `Referral tracked: code=${referralCode}, location=${locationId || 'company-level'}`,
       );
     } catch (error) {
-      console.error('Failed to track referral', error);
+      console.error(`Failed to track referral | ${formatError(error)}`);
     }
   }
 
@@ -380,7 +381,7 @@ class AuthService {
     try {
       return this.crypto.decryptSsoPayload(encryptedPayload);
     } catch (error) {
-      console.error('SSO decryption failed', error);
+      console.error(`SSO decryption failed | ${formatError(error)}`);
       const err = new Error('Invalid or expired SSO session');
       err.statusCode = 401;
       throw err;

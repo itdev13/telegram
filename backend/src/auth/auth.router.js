@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const { formatError } = require('../utils/format-error');
 
 function renderInstallSuccessPage({ alreadyCompleted = false } = {}) {
   const heading = alreadyCompleted
@@ -210,7 +211,7 @@ function createAuthRouter(authService) {
       await authService.handleOAuthCallback(req.query.code, req.query.state);
       res.send(renderInstallSuccessPage());
     } catch (error) {
-      console.error('OAuth callback failed', error);
+      console.error(`OAuth callback failed | ${formatError(error)}`);
 
       const isCodeReused =
         error.response?.data?.error === 'invalid_grant' &&

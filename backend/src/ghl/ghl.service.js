@@ -141,13 +141,21 @@ class GhlService {
   // ── Message Status Updates ─────────────────────────────────
 
   async updateMessageStatus(locationId, messageId, status, error) {
+    // GHL requires `error` to be an object ({ code, type, message }), not a string.
+    const errorPayload =
+      error == null
+        ? undefined
+        : typeof error === 'string'
+          ? { code: 'delivery_failed', type: 'saas', message: error }
+          : error;
+
     try {
       await this._apiRequest(locationId, (token) =>
         axios.put(
           `${this.apiBase}/conversations/messages/${messageId}/status`,
           {
             status,
-            ...(error ? { error } : {}),
+            ...(errorPayload ? { error: errorPayload } : {}),
           },
           {
             headers: {
@@ -160,7 +168,11 @@ class GhlService {
       );
       console.log(`Message ${messageId} status updated to: ${status}`);
     } catch (err) {
-      console.error(`Failed to update message status: ${messageId}`, err);
+      console.error(
+        `Failed to update message status: ${messageId}` +
+          ` | Status: ${err?.response?.status}` +
+          ` | Response: ${JSON.stringify(err?.response?.data)}`,
+      );
     }
   }
 

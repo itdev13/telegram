@@ -6,6 +6,7 @@ const CompanyLocation = require('../schemas/company-location.schema');
 const Referral = require('../schemas/referral.schema');
 const PhoneAuthSession = require('../schemas/phone-auth-session.schema');
 const ContactMapping = require('../schemas/contact-mapping.schema');
+const { formatError } = require('../utils/format-error');
 
 function createWebhooksRouter(
   settingsService,
@@ -533,7 +534,7 @@ async function handleAppUninstall(
 
     console.log(`Soft-delete cleanup complete for location: ${locationId}`);
   } catch (error) {
-    console.error(`Uninstall cleanup failed for ${locationId}`, error);
+    console.error(`Uninstall cleanup failed for ${locationId} | ${formatError(error)}`);
   }
 
   res.json({ ok: true });
