@@ -298,12 +298,14 @@ class BillingService {
    */
   async _clearWalletSuspension(locationId) {
     try {
-      await Installation.updateOne(
+      const result = await Installation.updateOne(
         { locationId, walletStatus: 'insufficient' },
         { walletStatus: 'ok', walletScope: null, walletMessage: '', walletUpdatedAt: new Date() },
       );
+      return result.modifiedCount > 0;
     } catch {
       // Non-critical.
+      return false;
     }
   }
 

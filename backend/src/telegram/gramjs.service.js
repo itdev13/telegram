@@ -21,6 +21,8 @@ class GramJsService {
     this.apiId = apiId;
     this.apiHash = apiHash;
     this.disabled = !apiId || !apiHash;
+
+    console.log(`[GramJS] initialized | billing gate: ${this.billing ? 'ENABLED' : 'DISABLED (billingService missing)'}`);
   }
 
   // ── Auth Flow ────────────────────────────────────────

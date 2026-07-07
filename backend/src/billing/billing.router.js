@@ -5,20 +5,32 @@ function createBillingRouter(billingService, authService) {
 
   // GET /billing/status
   router.get('/status', async (req, res) => {
+    // No caching — a 304 here would return a stale wallet status after a recharge.
+    res.set('Cache-Control', 'no-store');
+
+    const { companyId, locationId } = req.query;
+    console.log(`[Billing] /status requested | locationId=${locationId} companyId=${companyId}`);
     try {
-      const { companyId, locationId } = req.query;
       const accessToken = await authService.getAccessToken(locationId);
       const hasFunds = await billingService.hasFunds(companyId, accessToken);
+      console.log(`[Billing] /status hasFunds=${hasFunds} | locationId=${locationId}`);
 
       // If funds are back, clear any stale suspension so the UI banner and sync
       // resume immediately (rather than waiting for the next message to retry).
       if (hasFunds) {
-        await billingService._clearWalletSuspension(locationId);
+        const cleared = await billingService._clearWalletSuspension(locationId);
+        if (cleared) {
+          console.log(`[Billing] /status cleared prior suspension | locationId=${locationId}`);
+        }
       }
 
       const wallet = await billingService.getWalletStatus(locationId);
+      console.log(
+        `[Billing] /status result | locationId=${locationId} walletStatus=${wallet.walletStatus} scope=${wallet.walletScope || 'none'}`,
+      );
       res.json({ success: true, data: { hasFunds, ...wallet } });
     } catch (error) {
+      console.error(`[Billing] /status failed | locationId=${locationId} | ${error.message}`);
       res.status(error.statusCode || 500).json({ error: error.message });
     }
   });
