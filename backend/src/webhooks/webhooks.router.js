@@ -472,12 +472,14 @@ async function handleAppInstall(payload, res) {
   console.log(`App installed for location: ${locationId}, company: ${companyId}`);
 
   if (locationId && companyId) {
+    // Ensure the location is present in the company's location list so token
+    // fallback works even if this INSTALL arrives before the company OAuth flow.
+    // ($addToSet is safe — the OAuth flow stores the full company list separately.)
     await CompanyLocation.findOneAndUpdate(
       { companyId },
       { $addToSet: { locationIds: locationId } },
       { upsert: true },
     );
-    console.log(`Recorded location ${locationId} under company ${companyId}`);
 
     // Create/reactivate a skeleton Installation row so this location is counted as
     // installed immediately — even before it connects a bot/phone or gets a token.
