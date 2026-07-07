@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const { connectDatabase } = require('./database/connection');
+const Installation = require('./schemas/installation.schema');
 
 // Services
 const CryptoService = require('./crypto/crypto.service');
@@ -80,6 +81,44 @@ async function bootstrap() {
   // Health check
   app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok' });
+  });
+
+  // Admin stats — install counts. Guarded by ADMIN_API_KEY header.
+  // "Installed locations" = exactly the locations that installed the app (one
+  // Installation row each), NOT all sub-accounts in an agency.
+  app.get('/admin/stats', async (req, res) => {
+    const adminKey = process.env.ADMIN_API_KEY;
+    if (!adminKey || req.get('X-Admin-Key') !== adminKey) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const [totalInstalled, connected, botConnected, phoneConnected, bothConnected] =
+        await Promise.all([
+          Installation.countDocuments({ status: 'active' }),
+          Installation.countDocuments({
+            status: 'active',
+            $or: [{ telegramConfig: { $ne: null } }, { 'phoneConfig.isActive': true }],
+          }),
+          Installation.countDocuments({ status: 'active', telegramConfig: { $ne: null } }),
+          Installation.countDocuments({ status: 'active', 'phoneConfig.isActive': true }),
+          Installation.countDocuments({
+            status: 'active',
+            telegramConfig: { $ne: null },
+            'phoneConfig.isActive': true,
+          }),
+        ]);
+      res.json({
+        success: true,
+        data: {
+          totalInstalled, // count you asked for: installed locations
+          connected, // installed AND actually using bot/phone
+          notConnected: totalInstalled - connected,
+          byType: { bot: botConnected, phone: phoneConnected, both: bothConnected },
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   // Mount routers

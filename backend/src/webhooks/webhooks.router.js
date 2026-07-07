@@ -478,6 +478,27 @@ async function handleAppInstall(payload, res) {
       { upsert: true },
     );
     console.log(`Recorded location ${locationId} under company ${companyId}`);
+
+    // Create/reactivate a skeleton Installation row so this location is counted as
+    // installed immediately — even before it connects a bot/phone or gets a token.
+    // Tokens are still minted lazily on first use (getAccessToken falls back to the
+    // company token). This makes Installation the accurate source for install count:
+    // exactly the locations that installed the app, not all company sub-accounts.
+    await Installation.findOneAndUpdate(
+      { locationId },
+      {
+        companyId,
+        status: 'active',
+        $setOnInsert: {
+          installedAt: new Date(),
+          conversationProviderId: process.env.GHL_CONVERSATION_PROVIDER_ID || '',
+        },
+        // clear an uninstalled flag if this is a reinstall
+        uninstalledAt: null,
+      },
+      { upsert: true },
+    );
+    console.log(`Installation recorded for location ${locationId}`);
   }
 
   res.json({ ok: true });

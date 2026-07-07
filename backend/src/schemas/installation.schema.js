@@ -32,9 +32,12 @@ const InstallationSchema = new mongoose.Schema(
   {
     companyId: { type: String, required: true },
     locationId: { type: String, required: true, unique: true, index: true },
-    accessToken: { type: String, required: true },
-    refreshToken: { type: String, required: true },
-    tokenExpiresAt: { type: Date, required: true },
+    // Tokens are optional: a location can be installed (recorded via the INSTALL
+    // webhook) before it has any tokens. For company-level installs, location tokens
+    // are minted lazily on first use from the company token (see getAccessToken).
+    accessToken: { type: String },
+    refreshToken: { type: String },
+    tokenExpiresAt: { type: Date },
     status: { type: String, default: 'active', index: true },
     installedAt: { type: Date },
     uninstalledAt: { type: Date },
