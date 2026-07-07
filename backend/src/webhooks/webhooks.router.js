@@ -59,11 +59,7 @@ function createWebhooksRouter(
         return res.json({ ok: true });
       }
 
-      // Step 3: Get or create the GHL contact
-      const { ghlContactId, isNew: isNewContact } =
-        await contactMappingService.getOrCreateContact(locationId, telegramUser, chatId);
-
-      // Step 4: Get the installation's conversation provider ID
+      // Step 3: Get the installation's conversation provider ID
       const installation = await Installation.findOne({ locationId });
 
       if (!installation) {
@@ -71,7 +67,8 @@ function createWebhooksRouter(
         return res.json({ ok: false });
       }
 
-      // Step 4.5: Wallet gate — block sync if this location is suspended for insufficient funds.
+      // Step 3.5: Wallet gate — block BEFORE creating a contact, so a suspended
+      // location doesn't accumulate contacts for messages we won't sync.
       if (billingService) {
         const gate = await billingService.isSyncAllowed(locationId, installation.companyId);
         if (!gate.allowed) {
@@ -81,6 +78,10 @@ function createWebhooksRouter(
           return res.json({ ok: true, skipped: 'insufficient_funds' });
         }
       }
+
+      // Step 4: Get or create the GHL contact
+      const { ghlContactId, isNew: isNewContact } =
+        await contactMappingService.getOrCreateContact(locationId, telegramUser, chatId);
 
       // Step 5: Build the message content
       let messageText = message.text || message.caption || '';

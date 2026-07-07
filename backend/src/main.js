@@ -5,6 +5,7 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const { connectDatabase } = require('./database/connection');
 const Installation = require('./schemas/installation.schema');
+const { formatError } = require('./utils/format-error');
 
 // Services
 const CryptoService = require('./crypto/crypto.service');
@@ -149,12 +150,12 @@ async function bootstrap() {
 
   // Initialize phone connections (staggered reconnect)
   gramJsService.initAllClients().catch((err) => {
-    console.error('Failed to initialize phone connections:', err);
+    console.error(`Failed to initialize phone connections | ${formatError(err)}`);
   });
 
   // Global error handler
   app.use((err, req, res, next) => {
-    console.error('Unhandled error:', err);
+    console.error(`Unhandled error | ${formatError(err)}`);
     res.status(err.statusCode || 500).json({
       error: err.message || 'Internal server error',
     });

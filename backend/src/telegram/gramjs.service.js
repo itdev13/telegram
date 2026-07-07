@@ -340,21 +340,14 @@ class GramJsService {
       // Step 3: Normalize to Bot API shape for contactMappingService
       const telegramUser = senderInfo;
 
-      // Step 4: Get or create GHL contact
-      const { ghlContactId, isNew: isNewContact } = await this.contactMapping.getOrCreateContact(
-        locationId,
-        telegramUser,
-        chatIdNum,
-        'phone',
-      );
-
-      // Step 5: Get installation for conversation provider ID
+      // Step 4: Get installation for conversation provider ID
       const installation = await Installation.findOne({ locationId });
       if (!installation) {
         throw new Error(`No installation for location: ${locationId}`);
       }
 
-      // Step 5.5: Wallet gate — block sync if suspended for insufficient funds.
+      // Step 4.5: Wallet gate — block BEFORE creating a contact, so a suspended
+      // location doesn't accumulate contacts for messages we won't sync.
       if (this.billing) {
         const gate = await this.billing.isSyncAllowed(locationId, installation.companyId);
         if (!gate.allowed) {
@@ -368,6 +361,14 @@ class GramJsService {
           return;
         }
       }
+
+      // Step 5: Get or create GHL contact
+      const { ghlContactId, isNew: isNewContact } = await this.contactMapping.getOrCreateContact(
+        locationId,
+        telegramUser,
+        chatIdNum,
+        'phone',
+      );
 
       // Step 6: Build message content
       const messageText = message.text || message.message || '';
