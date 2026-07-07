@@ -237,7 +237,7 @@ class GramJsService {
       const oldNextType = oldInstall?.telegramConfig ? 'bot' : 'none';
       await Installation.updateOne(
         { locationId: transferFromLocationId },
-        { $set: { phoneConfig: null, connectionType: oldNextType } },
+        { $set: { phoneConfig: null, connectionType: oldNextType }, $pull: { connectionTypes: 'phone' } },
       );
       console.log(`[Phone] Transferred number ${phoneNumber} from location ${transferFromLocationId} → ${locationId}`);
     }
@@ -247,6 +247,7 @@ class GramJsService {
       { locationId },
       {
         connectionType: 'phone',
+        $addToSet: { connectionTypes: 'phone' },
         phoneConfig: {
           phoneNumber,
           sessionString: encryptedSession,

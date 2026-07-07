@@ -58,7 +58,10 @@ class SettingsService {
     };
 
     if (installation) {
-      await Installation.updateOne({ locationId }, { telegramConfig, connectionType: 'bot' });
+      await Installation.updateOne(
+        { locationId },
+        { telegramConfig, connectionType: 'bot', $addToSet: { connectionTypes: 'bot' } },
+      );
     } else {
       const setOnInsert = {
         locationId,
@@ -96,7 +99,7 @@ class SettingsService {
 
       await Installation.findOneAndUpdate(
         { locationId },
-        { telegramConfig, connectionType: 'bot', $setOnInsert: setOnInsert },
+        { telegramConfig, connectionType: 'bot', $addToSet: { connectionTypes: 'bot' }, $setOnInsert: setOnInsert },
         { upsert: true },
       );
     }
@@ -130,7 +133,7 @@ class SettingsService {
     const nextType = installation?.phoneConfig?.isActive ? 'phone' : 'none';
     await Installation.updateOne(
       { locationId },
-      { telegramConfig: null, connectionType: nextType },
+      { telegramConfig: null, connectionType: nextType, $pull: { connectionTypes: 'bot' } },
     );
 
     console.log(`Bot disconnected for location: ${locationId}`);

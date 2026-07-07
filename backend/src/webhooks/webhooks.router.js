@@ -539,7 +539,7 @@ async function handleAppUninstall(
         } catch (err) {
           console.warn(`Failed to disconnect phone for ${locationId}:`, err.message);
         }
-        await Installation.updateOne({ locationId }, { phoneConfig: null });
+        await Installation.updateOne({ locationId }, { phoneConfig: null, $pull: { connectionTypes: 'phone' } });
       }
     }
 

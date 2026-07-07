@@ -26,6 +26,21 @@ function computeType(inst) {
   return 'none';
 }
 
+// All active transports for the array field, e.g. ['bot', 'phone'].
+function computeTypes(inst) {
+  const types = [];
+  if (inst.telegramConfig) types.push('bot');
+  if (inst.phoneConfig?.isActive) types.push('phone');
+  return types;
+}
+
+function sameArray(a = [], b = []) {
+  if (a.length !== b.length) return false;
+  const sa = [...a].sort();
+  const sb = [...b].sort();
+  return sa.every((v, i) => v === sb[i]);
+}
+
 async function main() {
   await connectDatabase();
 
@@ -37,11 +52,21 @@ async function main() {
   for (let inst = await cursor.next(); inst != null; inst = await cursor.next()) {
     scanned++;
     const next = computeType(inst);
+    const nextTypes = computeTypes(inst);
     counts[next]++;
-    if (inst.connectionType !== next) {
-      await Installation.updateOne({ _id: inst._id }, { connectionType: next });
+
+    const typeChanged = inst.connectionType !== next;
+    const typesChanged = !sameArray(inst.connectionTypes, nextTypes);
+
+    if (typeChanged || typesChanged) {
+      await Installation.updateOne(
+        { _id: inst._id },
+        { connectionType: next, connectionTypes: nextTypes },
+      );
       updated++;
-      console.log(`  ${inst.locationId}: ${inst.connectionType || '(unset)'} → ${next}`);
+      console.log(
+        `  ${inst.locationId}: ${inst.connectionType || '(unset)'} → ${next} | [${(inst.connectionTypes || []).join(',')}] → [${nextTypes.join(',')}]`,
+      );
     }
   }
 

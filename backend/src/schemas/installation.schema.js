@@ -44,6 +44,13 @@ const InstallationSchema = new mongoose.Schema(
     // at once — telegramConfig / phoneConfig are the true source of truth. This field
     // reflects the most recently connected transport and is kept for backward compat.
     connectionType: { type: String, enum: ['none', 'bot', 'phone'], default: 'none' },
+    // All currently-active connection types for this location. Unlike the single
+    // connectionType field, this represents every active transport at once
+    // (e.g. ['bot', 'phone']). Empty array = nothing connected.
+    connectionTypes: {
+      type: [{ type: String, enum: ['bot', 'phone'] }],
+      default: [],
+    },
     telegramConfig: { type: TelegramConfigSchema, default: null },
     phoneConfig: { type: PhoneConfigSchema, default: null },
     // Wallet gating: when a charge fails for insufficient funds we suspend syncing

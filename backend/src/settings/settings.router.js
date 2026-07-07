@@ -49,6 +49,8 @@ function createSettingsRouter(settingsService, gramJsService, ssoMiddleware) {
           : null,
         // backward compat
         connectionType: installation?.connectionType || 'none',
+        // all active connection types, e.g. ['bot', 'phone']
+        connectionTypes: installation?.connectionTypes || [],
         connected: botConnected || phoneConnected,
       });
     } catch (error) {
@@ -169,7 +171,7 @@ function createSettingsRouter(settingsService, gramJsService, ssoMiddleware) {
       const nextType = inst?.telegramConfig ? 'bot' : 'none';
       await Installation.updateOne(
         { locationId },
-        { phoneConfig: null, connectionType: nextType },
+        { phoneConfig: null, connectionType: nextType, $pull: { connectionTypes: 'phone' } },
       );
 
       // Clean up any pending auth sessions
