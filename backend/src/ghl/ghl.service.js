@@ -72,7 +72,7 @@ class GhlService {
           locationId,
           firstName,
           lastName: lastName || '',
-          source: 'TeleSync - Telegram',
+          source: 'Telegram Messaging Connector',
           ...extraFields,
         },
         {
