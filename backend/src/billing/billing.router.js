@@ -9,7 +9,15 @@ function createBillingRouter(billingService, authService) {
       const { companyId, locationId } = req.query;
       const accessToken = await authService.getAccessToken(locationId);
       const hasFunds = await billingService.hasFunds(companyId, accessToken);
-      res.json({ success: true, data: { hasFunds } });
+
+      // If funds are back, clear any stale suspension so the UI banner and sync
+      // resume immediately (rather than waiting for the next message to retry).
+      if (hasFunds) {
+        await billingService._clearWalletSuspension(locationId);
+      }
+
+      const wallet = await billingService.getWalletStatus(locationId);
+      res.json({ success: true, data: { hasFunds, ...wallet } });
     } catch (error) {
       res.status(error.statusCode || 500).json({ error: error.message });
     }

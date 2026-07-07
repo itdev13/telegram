@@ -7,7 +7,7 @@ const PendingUpdateSchema = new mongoose.Schema(
     status: {
       type: String,
       required: true,
-      enum: ['pending', 'processing', 'completed', 'failed'],
+      enum: ['pending', 'processing', 'completed', 'failed', 'skipped'],
       default: 'pending',
     },
     attempts: { type: Number, default: 0 },

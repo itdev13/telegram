@@ -6,6 +6,7 @@ import ConnectionTypeSelector from './components/ConnectionTypeSelector';
 import ConnectionDashboard from './components/ConnectionDashboard';
 import BotSetupCard from './components/BotSetupCard';
 import PhoneSetupCard from './components/PhoneSetupCard';
+import WalletBanner from './components/WalletBanner';
 import { Loader, AlertCircle } from './components/Icons';
 
 export default function App() {
@@ -74,6 +75,7 @@ export default function App() {
     return (
       <div className="max-w-[720px] mx-auto px-6 py-8 min-h-screen">
         <Header botConnected={!!botInfo} phoneConnected={!!phoneInfo} />
+        <WalletBanner user={user} ssoPayload={ssoPayload} />
         <ConnectionDashboard
           botInfo={botInfo}
           phoneInfo={phoneInfo}

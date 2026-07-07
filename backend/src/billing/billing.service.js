@@ -162,6 +162,9 @@ class BillingService {
       transaction.status = 'completed';
       await transaction.save();
 
+      // A successful charge means the wallet is funded again — clear any prior suspension.
+      await this._clearWalletSuspension(locationId);
+
       // Track referral revenue (non-blocking)
       await this._trackReferralRevenue(locationId, amount, referralCode);
 
@@ -176,6 +179,11 @@ class BillingService {
       transaction.status = 'failed';
       transaction.errorMessage = error.message;
       await transaction.save();
+
+      // If it failed for lack of funds, suspend syncing for this location until recharge.
+      if (error.insufficientFunds) {
+        await this._suspendWallet(locationId, error.walletScope, error.ghlBody?.message || error.message);
+      }
 
       const ghlBody = error.ghlBody;
       const ghlMsg = (ghlBody?.message || ghlBody?.error || error.message || '').toLowerCase();
@@ -255,8 +263,91 @@ class BillingService {
       );
       enriched.status = status;
       enriched.ghlBody = ghlBody;
+      // Detect insufficient-funds so callers can suspend syncing and the UI can prompt a recharge.
+      const lowerMsg = (ghlMsg || '').toLowerCase();
+      enriched.insufficientFunds = /insufficient|not enough funds|low balance/i.test(lowerMsg);
+      enriched.walletScope = /agency/i.test(lowerMsg) ? 'agency'
+        : /location|sub-?account/i.test(lowerMsg) ? 'location'
+        : null;
       throw enriched;
     }
+  }
+
+  /**
+   * Suspend syncing for a location after an insufficient-funds charge failure.
+   */
+  async _suspendWallet(locationId, walletScope, message) {
+    try {
+      await Installation.updateOne(
+        { locationId },
+        {
+          walletStatus: 'insufficient',
+          walletScope: walletScope || null,
+          walletMessage: message || 'Wallet has insufficient funds',
+          walletUpdatedAt: new Date(),
+        },
+      );
+      console.warn(`[Billing] Location ${locationId} suspended — wallet insufficient (${walletScope || 'unknown'})`);
+    } catch (err) {
+      console.error(`[Billing] Failed to set wallet suspension for ${locationId} | ${err.message}`);
+    }
+  }
+
+  /**
+   * Clear a prior wallet suspension (called after a successful charge).
+   */
+  async _clearWalletSuspension(locationId) {
+    try {
+      await Installation.updateOne(
+        { locationId, walletStatus: 'insufficient' },
+        { walletStatus: 'ok', walletScope: null, walletMessage: '', walletUpdatedAt: new Date() },
+      );
+    } catch {
+      // Non-critical.
+    }
+  }
+
+  /**
+   * Gate for message sync. Returns { allowed, status, scope, message }.
+   * Blocks sync when the location is currently suspended for insufficient funds.
+   * Internal-testing companies are always allowed.
+   */
+  async isSyncAllowed(locationId, companyId) {
+    if (companyId && (await this.isInternalTesting(companyId))) {
+      return { allowed: true, status: 'ok' };
+    }
+    try {
+      const inst = await Installation.findOne({ locationId })
+        .select('walletStatus walletScope walletMessage')
+        .lean();
+      if (inst?.walletStatus === 'insufficient') {
+        return {
+          allowed: false,
+          status: 'insufficient',
+          scope: inst.walletScope || null,
+          message: inst.walletMessage || 'Wallet has insufficient funds',
+        };
+      }
+    } catch (err) {
+      // On lookup failure, fail open (don't block delivery on our own DB error).
+      console.error(`[Billing] isSyncAllowed lookup failed for ${locationId} | ${err.message}`);
+    }
+    return { allowed: true, status: 'ok' };
+  }
+
+  /**
+   * Read the persisted wallet status for a location (for the UI banner).
+   */
+  async getWalletStatus(locationId) {
+    const inst = await Installation.findOne({ locationId })
+      .select('walletStatus walletScope walletMessage walletUpdatedAt')
+      .lean();
+    return {
+      walletStatus: inst?.walletStatus || 'ok',
+      walletScope: inst?.walletScope || null,
+      walletMessage: inst?.walletMessage || '',
+      walletUpdatedAt: inst?.walletUpdatedAt || null,
+    };
   }
 
   /**

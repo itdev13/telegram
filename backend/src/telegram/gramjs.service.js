@@ -346,6 +346,21 @@ class GramJsService {
         throw new Error(`No installation for location: ${locationId}`);
       }
 
+      // Step 5.5: Wallet gate — block sync if suspended for insufficient funds.
+      if (this.billing) {
+        const gate = await this.billing.isSyncAllowed(locationId, installation.companyId);
+        if (!gate.allowed) {
+          console.warn(
+            `[Billing] Skipping phone inbound sync for ${locationId} — wallet ${gate.status} (${gate.scope || 'unknown'})`,
+          );
+          await PendingUpdate.updateOne(
+            { _id: pendingUpdate._id },
+            { status: 'skipped', processedAt: new Date() },
+          );
+          return;
+        }
+      }
+
       // Step 6: Build message content
       const messageText = message.text || message.message || '';
 

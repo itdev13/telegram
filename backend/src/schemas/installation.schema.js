@@ -43,6 +43,12 @@ const InstallationSchema = new mongoose.Schema(
     connectionType: { type: String, enum: ['bot', 'phone'], default: 'bot' },
     telegramConfig: { type: TelegramConfigSchema, default: null },
     phoneConfig: { type: PhoneConfigSchema, default: null },
+    // Wallet gating: when a charge fails for insufficient funds we suspend syncing
+    // for this location until the wallet is topped up (auto-cleared on next hasFunds pass).
+    walletStatus: { type: String, enum: ['ok', 'insufficient'], default: 'ok', index: true },
+    walletScope: { type: String, enum: ['agency', 'location', null], default: null },
+    walletMessage: { type: String, default: '' },
+    walletUpdatedAt: { type: Date },
   },
   { collection: 'installations', timestamps: true },
 );

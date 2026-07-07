@@ -71,6 +71,17 @@ function createWebhooksRouter(
         return res.json({ ok: false });
       }
 
+      // Step 4.5: Wallet gate — block sync if this location is suspended for insufficient funds.
+      if (billingService) {
+        const gate = await billingService.isSyncAllowed(locationId, installation.companyId);
+        if (!gate.allowed) {
+          console.warn(
+            `[Billing] Skipping inbound sync for ${locationId} — wallet ${gate.status} (${gate.scope || 'unknown'})`,
+          );
+          return res.json({ ok: true, skipped: 'insufficient_funds' });
+        }
+      }
+
       // Step 5: Build the message content
       let messageText = message.text || message.caption || '';
       if (isEdited && messageText) {
@@ -253,6 +264,23 @@ function createWebhooksRouter(
 
       // Step 2: Determine transport (bot or phone) based on contact source
       const installation = await Installation.findOne({ locationId });
+
+      // Wallet gate — block outbound send if suspended for insufficient funds.
+      if (billingService && installation) {
+        const gate = await billingService.isSyncAllowed(locationId, installation.companyId);
+        if (!gate.allowed) {
+          console.warn(
+            `[Billing] Skipping outbound send for ${locationId} — wallet ${gate.status} (${gate.scope || 'unknown'})`,
+          );
+          await ghlService.updateMessageStatus(locationId, messageId, 'failed', {
+            code: 'insufficient_funds',
+            type: 'saas',
+            message: gate.message || 'Wallet has insufficient funds — recharge to resume messaging.',
+          });
+          return res.json({ ok: true, skipped: 'insufficient_funds' });
+        }
+      }
+
       const mapping = await ContactMapping.findOne({ locationId, ghlContactId: contactId });
       const hasPhone = !!(installation?.phoneConfig?.isActive && connectionManager?.isConnected?.(locationId));
       const hasBot = !!(installation?.telegramConfig?.isActive);
