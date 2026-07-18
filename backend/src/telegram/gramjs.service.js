@@ -503,12 +503,23 @@ class GramJsService {
         `  Stack: ${error.stack?.split('\n').slice(0, 3).join(' | ')}`
       );
 
+      // A dead OAuth token (agency revoked / reauthorized) will never succeed on
+      // retry and just spams logs — fail fast. Covers both the raw invalid_grant and
+      // the follow-on "No active company token" once we've deactivated it.
+      const ghlErr = error.response?.data?.error || '';
+      const isTerminalAuth =
+        ghlErr === 'invalid_grant' ||
+        /invalid_grant|No active company token/i.test(error.message || '');
+
       const updated = await PendingUpdate.findById(pendingUpdate._id);
-      if (updated && updated.attempts >= updated.maxAttempts) {
+      if (isTerminalAuth || (updated && updated.attempts >= updated.maxAttempts)) {
         await PendingUpdate.updateOne(
           { _id: pendingUpdate._id },
           { status: 'failed', errorMessage: error.message },
         );
+        if (isTerminalAuth) {
+          console.error(`[Phone] Terminal auth failure for ${locationId} (invalid_grant) — marking update failed, not retrying`);
+        }
       } else {
         await PendingUpdate.updateOne(
           { _id: pendingUpdate._id },

@@ -200,15 +200,26 @@ class AuthService {
 
     const refreshToken = this.crypto.decrypt(companyToken.refreshToken);
 
-    const tokenResponse = await axios.post(
-      `${this.ghlApiBase}/oauth/token`,
-      new URLSearchParams({
-        client_id: process.env.GHL_CLIENT_ID,
-        client_secret: process.env.GHL_CLIENT_SECRET,
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-      }),
-    );
+    let tokenResponse;
+    try {
+      tokenResponse = await axios.post(
+        `${this.ghlApiBase}/oauth/token`,
+        new URLSearchParams({
+          client_id: process.env.GHL_CLIENT_ID,
+          client_secret: process.env.GHL_CLIENT_SECRET,
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+        }),
+      );
+    } catch (error) {
+      // invalid_grant = the agency's refresh token was revoked (uninstall/reauth).
+      // Deactivate the company token so we stop retrying it on every message.
+      if (error?.response?.data?.error === 'invalid_grant') {
+        await CompanyToken.updateOne({ companyId }, { isActive: false });
+        console.error(`[Auth] Company ${companyId} refresh token revoked (invalid_grant) — deactivated CompanyToken`);
+      }
+      throw error;
+    }
 
     const { access_token, refresh_token: newRefreshToken, expires_in } = tokenResponse.data;
 

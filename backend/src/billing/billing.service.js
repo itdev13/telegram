@@ -453,6 +453,9 @@ class BillingService {
     try {
       accessToken = await this.authService.getAccessToken(locationId);
     } catch (err) {
+      // Cache the undetermined result too, so a location with a dead/broken token
+      // isn't re-fetched on every single message (avoids a token-error log storm).
+      this._fundsCache.set(companyId, { hasFunds: null, at: Date.now() });
       console.error(`[Billing] hasFunds token fetch failed for ${locationId} | ${err.message}`);
       return null; // fail open — don't block on our own auth error
     }
